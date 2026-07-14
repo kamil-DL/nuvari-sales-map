@@ -38,6 +38,11 @@ const COUNTY_NS_GROUPS = [
 const COUNTY_NS_RANK = {};
 COUNTY_NS_GROUPS.forEach((names, i) => names.forEach(n => { COUNTY_NS_RANK[n] = i; }));
 
+// Canonical list of all 22 counties/cities, north to south, one name each (the primary 台
+// spelling) — for populating a county <select> with every possible value, not just ones some
+// shop already has.
+export const COUNTY_LIST_NS = COUNTY_NS_GROUPS.map(names => names[0]);
+
 // Unranked/unrecognized county names sort after everything else, in their original relative
 // order (stable sort), rather than being silently dropped.
 export function countyNSRank(name) {

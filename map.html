@@ -936,8 +936,6 @@ function initMap(){
       });
       layer.on('mouseover',()=>layer.setStyle({weight:2.5}));
       layer.on('mouseout',()=>layer.setStyle({weight:detailLevel==='district'?0.6:1}));
-      const info=COUNTY_DATA[key];
-      if(info)layer.bindTooltip(`${info.zh} ${key}`,{sticky:true,opacity:0.9});
     }
   });
 
@@ -953,8 +951,6 @@ function initMap(){
       });
       layer.on('mouseover',()=>layer.setStyle({weight:2}));
       layer.on('mouseout',()=>layer.setStyle({weight:0.6}));
-      const info=DISTRICT_DATA[did];
-      if(info)layer.bindTooltip(`${info.countyZh}${info.zh}`,{sticky:true,opacity:0.9});
     }
   });
 

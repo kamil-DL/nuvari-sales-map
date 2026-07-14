@@ -52,6 +52,8 @@
         <h2>基本資訊 Shop Info</h2>
         <div class="nst-field-row"><span class="label">地址 Address</span><span class="value" id="f-address">—</span></div>
         <div class="nst-field-row"><span class="label">地區 Region</span><span class="value" id="f-region">—</span></div>
+        <div class="nst-field-row"><span class="label">縣市 County</span><span class="value" id="f-county">—</span></div>
+        <div class="nst-field-row"><span class="label">鄉鎮市區 District</span><span class="value" id="f-district">—</span></div>
         <div class="nst-field-row"><span class="label">聯絡人 Contact</span><span class="value" id="f-contact-name">—</span></div>
         <div class="nst-field-row"><span class="label">聯絡電話 Phone</span><span class="value" id="f-contact-phone">—</span></div>
         <div class="nst-field-row"><span class="label">業務員 Sales rep</span><span class="value" id="f-sales-rep">—</span></div>
@@ -110,6 +112,12 @@
         <option value="南部">南部 South</option>
         <option value="離島">離島 Islands</option>
       </select>
+      <label class="nst-field-label">縣市 County</label>
+      <select id="ef-county" class="nst-select">
+        <option value="">未分類 Unassigned</option>
+      </select>
+      <label class="nst-field-label">鄉鎮市區 District</label>
+      <input id="ef-district" type="text" class="nst-input" placeholder="e.g. 信義區"/>
       <label class="nst-field-label">聯絡人 Contact name</label>
       <input id="ef-contact-name" type="text" class="nst-input"/>
       <label class="nst-field-label">聯絡電話 Contact phone</label>
@@ -166,6 +174,7 @@ import { getShop, updateShop, deleteShop, STATUS_LABELS, PRIORITY_LABELS, loadUs
 import { loadVisits, addVisit, VISIT_STATUS_LABELS } from './js/visits.js';
 import { friendlyError } from '../shared/friendly-error.js';
 import { canDeleteShops } from '../shared/delete-policy.js';
+import { COUNTY_LIST_NS } from '../shared/geo.js';
 
 document.getElementById('logo').src = LOGO;
 
@@ -221,6 +230,18 @@ function populateDatasetSelect(currentDatasetId) {
   const optionsHtml = datasets.map(d => `<option value="${esc(d.id)}">${esc(d.name)}</option>`).join('');
   sel.innerHTML = '<option value="">未分類 Unassigned</option>' + optionsHtml;
   sel.value = currentDatasetId || '';
+}
+
+// Every county is offered, not just ones some shop already has — otherwise there'd be no way
+// to pick a county with zero shops in it yet.
+function populateCountySelect(currentCounty) {
+  const sel = document.getElementById('ef-county');
+  const optionsHtml = COUNTY_LIST_NS.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  sel.innerHTML = '<option value="">未分類 Unassigned</option>' + optionsHtml;
+  if (currentCounty && ![...sel.options].some(o => o.value === currentCounty)) {
+    sel.insertAdjacentHTML('beforeend', `<option value="${esc(currentCounty)}">${esc(currentCounty)}</option>`);
+  }
+  sel.value = currentCounty || '';
 }
 
 function esc(s) {
@@ -283,6 +304,8 @@ function renderShop() {
   document.getElementById('shop-status-badge').innerHTML = statusBadge(shop.status) + priorityBadge(shop.priority);
   document.getElementById('f-address').textContent = shop.address || '—';
   document.getElementById('f-region').textContent = shop.region || '—';
+  document.getElementById('f-county').textContent = shop.county || '—';
+  document.getElementById('f-district').textContent = shop.district || '—';
   document.getElementById('f-contact-name').textContent = shop.contact_name || '—';
   document.getElementById('f-contact-phone').textContent = shop.contact_phone || '—';
   document.getElementById('f-sales-rep').textContent = shop.sales_rep || '—';
@@ -344,6 +367,8 @@ document.getElementById('edit-btn').addEventListener('click', () => {
   document.getElementById('ef-priority').value = shop.priority || '';
   document.getElementById('ef-address').value = shop.address || '';
   document.getElementById('ef-region').value = shop.region || '';
+  populateCountySelect(shop.county || '');
+  document.getElementById('ef-district').value = shop.district || '';
   document.getElementById('ef-contact-name').value = shop.contact_name || '';
   document.getElementById('ef-contact-phone').value = shop.contact_phone || '';
   populateRepSelect(shop.sales_rep || '');
@@ -369,6 +394,8 @@ document.getElementById('edit-save-btn').addEventListener('click', async () => {
       priority: document.getElementById('ef-priority').value || null,
       address: document.getElementById('ef-address').value.trim() || null,
       region: document.getElementById('ef-region').value.trim() || null,
+      county: document.getElementById('ef-county').value || null,
+      district: document.getElementById('ef-district').value.trim() || null,
       contact_name: document.getElementById('ef-contact-name').value.trim() || null,
       contact_phone: document.getElementById('ef-contact-phone').value.trim() || null,
       sales_rep: document.getElementById('ef-sales-rep').value || null,
