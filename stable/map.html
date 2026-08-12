@@ -900,8 +900,6 @@ function initMap(){
       });
       layer.on('mouseover',()=>layer.setStyle({weight:2.5}));
       layer.on('mouseout',()=>layer.setStyle({weight:detailLevel==='district'?0.6:1}));
-      const info=COUNTY_DATA[key];
-      if(info)layer.bindTooltip(`${info.zh} ${key}`,{sticky:true,opacity:0.9});
     }
   });
 
@@ -917,8 +915,6 @@ function initMap(){
       });
       layer.on('mouseover',()=>layer.setStyle({weight:2}));
       layer.on('mouseout',()=>layer.setStyle({weight:0.6}));
-      const info=DISTRICT_DATA[did];
-      if(info)layer.bindTooltip(`${info.countyZh}${info.zh}`,{sticky:true,opacity:0.9});
     }
   });
 
@@ -1178,7 +1174,32 @@ function rebuildBikeshopMarkers(){
       radius:7,color:'#fff',weight:1.8,fillColor:fillColor,fillOpacity:0.9,pane:'shopPane'
     }).addTo(bikeshopGroup);
     m.bindPopup(buildBikeshopPopup(shop),{maxWidth:230,closeOnClick:false});
-    m.on('click',e=>L.DomEvent.stopPropagation(e));
+    // Hover shows a lightweight read-only preview (no color swatches/edit form/links) so
+    // glancing across many pins is cheap; an actual click "pins" it open as the full,
+    // editable popup. clickedOpen tracks which state we're in per-marker — reset on
+    // popupclose so hovering the same pin again later goes back to the light preview
+    // instead of jumping straight to full.
+    let clickedOpen=false;
+    m.on('mouseover',()=>{
+      if(clickedOpen)return;
+      m.closePopup();
+      m.setPopupContent(buildBikeshopPreviewPopup(shop));
+      m.openPopup();
+    });
+    m.on('mouseout',()=>{
+      if(clickedOpen)return;
+      m.closePopup();
+    });
+    m.on('popupclose',()=>{clickedOpen=false;});
+    m.on('click',e=>{
+      L.DomEvent.stopPropagation(e);
+      // closePopup() fires 'popupclose' synchronously, which would reset clickedOpen back to
+      // false via the listener above if set beforehand — set it true AFTER closing, not before.
+      m.closePopup();
+      clickedOpen=true;
+      m.setPopupContent(buildBikeshopPopup(shop));
+      m.openPopup();
+    });
     m.on('popupopen',e=>{
       const el=e.popup.getElement();
       el.querySelectorAll('.pc-swatch').forEach(sw=>{
@@ -1347,6 +1368,36 @@ function buildBikeshopPopup(shop){
     ${gmapsLink}
     ${editBlock}
     ${delBtn}
+  </div>`;
+}
+// Lightweight, read-only version shown on hover — same info as buildBikeshopPopup (name,
+// layer, status/priority/rating badges, address/category/phone) but no color swatches, edit
+// form, Google Maps link, or delete button, so a quick glance across many pins is cheap and
+// nothing here can be accidentally clicked/changed. Clicking the pin swaps in the full popup.
+function buildBikeshopPreviewPopup(shop){
+  const layer=csvLayers.find(l=>l.id===shop._layerId);
+  if(layer&&layer.kind==='infrastructure'){
+    return`<div class="bs-popup">
+      <div class="bs-name">${esc(shop.name)}</div>
+      <div style="font-size:10px;margin-bottom:4px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${esc(layer.color)};margin-right:4px;vertical-align:middle;"></span>${esc(layer.name)}</div>
+      ${shop.address?`<div class="bs-addr">${esc(shop.address)}</div>`:''}
+    </div>`;
+  }
+  const st=statusStyle(shop.status);
+  const RATING_COLORS={'A':'#0E8F6B','B':'#E08E2C','C':'#E0584A','D':'#8B5CF6','E':'#798BA5'};
+  const ratingBadge=shop.rating?`<span class="bs-badge" style="background:${RATING_COLORS[shop.ratingGroup]||'#798BA5'}1A;color:${RATING_COLORS[shop.ratingGroup]||'#798BA5'};margin-left:5px;">${esc(shop.rating)}</span>`:'';
+  const googleRatingBadge=shop.google_rating!=null?`<span class="bs-badge" style="background:#FFF3E0;color:#E65100;margin-left:5px;">★ ${shop.google_rating}${shop.google_rating_count!=null?` (${shop.google_rating_count})`:''}</span>`:'';
+  const categoryLine=shop.category?`<div class="bs-addr" style="color:var(--soft,#798BA5);">${esc(shop.category)}${shop.business_status&&shop.business_status!=='OPERATIONAL'?` · ${esc(shop.business_status)}`:''}</div>`:'';
+  const phoneLine=shop.contact_phone?`<div class="bs-addr">Tel: ${esc(shop.contact_phone)}</div>`:'';
+  const priorityBadge=shop.priority&&PRIORITY_STYLE[shop.priority]?`<span class="bs-badge" style="background:${esc(PRIORITY_STYLE[shop.priority].bg)};color:${esc(PRIORITY_STYLE[shop.priority].color)};margin-left:5px;">${esc(PRIORITY_STYLE[shop.priority].label)}</span>`:'';
+  return`<div class="bs-popup">
+    <div class="bs-name">${esc(shop.name)}</div>
+    ${layer?`<div style="font-size:10px;margin-bottom:4px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${esc(layer.color)};margin-right:4px;vertical-align:middle;"></span>${esc(layer.name)}</div>`:''}
+    <span class="bs-badge" style="background:${esc(st.bg)};color:${esc(st.color)}">${esc(st.label)}</span>${priorityBadge}${ratingBadge}${googleRatingBadge}
+    ${shop.address?`<div class="bs-addr">${esc(shop.address)}</div>`:''}
+    ${categoryLine}
+    ${phoneLine}
+    <div style="font-size:9px;color:var(--soft,#798BA5);margin-top:6px;">點擊查看更多 Click for more ›</div>
   </div>`;
 }
 function statusOptionsHtml(current){
