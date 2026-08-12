@@ -589,6 +589,8 @@ const STATUS_STYLE={
   '電訪過':      {color:'#137ECE',bg:'#E8F3FB',label:'電訪過 Phone Contacted'},
   '電訪過-拒絕': {color:'#E65100',bg:'#FFF3E0',label:'電訪過-拒絕 Phone Contacted (Declined)'},
   '拜訪過':      {color:'#0F8A80',bg:'#E3F6F4',label:'拜訪過 Visited'},
+  '拜訪過-有意願': {color:'#5B8C1A',bg:'#ECFCCB',label:'拜訪過-有意願 Visited (Interested)'},
+  '拜訪過-評估中': {color:'#CA8A04',bg:'#FEF9C3',label:'拜訪過-評估中 Visited (Undecided)'},
   '拜訪過-拒絕': {color:'#D93025',bg:'#FEE8E7',label:'拜訪過-拒絕 Visited (Declined)'},
   '已合作':      {color:'#0B8E6A',bg:'#E6F9F4',label:'已合作 Partnered'},
   '已合作-流失': {color:'#7C3AED',bg:'#F2ECFB',label:'已合作-流失 Partnered (Churned)'},
@@ -1982,7 +1984,7 @@ function renderShopsTab(){
     ?`<div class="upload-zone" id="uploadZone">
         <div class="uz-icon">📋</div>
         <div class="uz-title">上傳資料集 Upload dataset</div>
-        <div class="uz-sub">CSV 格式，需含 lat/GISY, lng/GISX 欄位（與 Shop DB 共用標準）<br>columns: name, status, priority, address, category, contact_name, contact_phone, notes, rating, lat, lng<br>status: 尚未開發 / 電訪過 / 電訪過-拒絕 / 拜訪過 / 拜訪過-拒絕 / 已合作 / 已合作-流失<br>priority: P1 / P2 / P3（optional）</div>
+        <div class="uz-sub">CSV 格式，需含 lat/GISY, lng/GISX 欄位（與 Shop DB 共用標準）<br>columns: name, status, priority, address, category, contact_name, contact_phone, notes, rating, lat, lng<br>status: 尚未開發 / 電訪過 / 電訪過-拒絕 / 拜訪過 / 拜訪過-有意願 / 拜訪過-評估中 / 拜訪過-拒絕 / 已合作 / 已合作-流失<br>priority: P1 / P2 / P3（optional）</div>
       </div>${dbBtn}`
     :`<button class="btn btn-teal" id="addLayerBtn" style="width:100%;margin-bottom:8px;">＋ 新增位置資料集 Add location dataset</button>${dbBtn}`;
 

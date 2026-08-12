@@ -117,6 +117,8 @@ export const STATUS_LABELS = {
   '電訪過':      { zh: '電訪過',      en: 'Phone Contacted',           color: 'badge-blue' },
   '電訪過-拒絕': { zh: '電訪過-拒絕', en: 'Phone Contacted (Declined)', color: 'badge-orange' },
   '拜訪過':      { zh: '拜訪過',      en: 'Visited',                   color: 'badge-teal' },
+  '拜訪過-有意願': { zh: '拜訪過-有意願', en: 'Visited (Interested)',   color: 'badge-lime' },
+  '拜訪過-評估中': { zh: '拜訪過-評估中', en: 'Visited (Undecided)',    color: 'badge-yellow' },
   '拜訪過-拒絕': { zh: '拜訪過-拒絕', en: 'Visited (Declined)',        color: 'badge-red' },
   '已合作':      { zh: '已合作',      en: 'Partnered',                 color: 'badge-green' },
   '已合作-流失': { zh: '已合作-流失', en: 'Partnered (Churned)',       color: 'badge-purple' },

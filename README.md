@@ -119,19 +119,21 @@ Shared by both the map planner's candidate-shop import and the Shop DB's import/
 
 Only `name` + lat + lng are required; everything else is optional. Delimiter (comma or tab) is auto-detected. `dataset` is chosen in the import UI, not a CSV column.
 
-**Status vocabulary** (7 stages, same hex colors in both tools):
+**Status vocabulary** (9 stages, same hex colors in both tools):
 
 ```
 尚未開發 (Not Developed, gray)
   → 電訪過 (Phone Contacted, blue)
     → 電訪過-拒絕 (Phone Contacted – Declined, orange)
     → 拜訪過 (Visited, teal)
+      → 拜訪過-有意願 (Visited – Interested: visited, they're open to it, but no sample given / not proceeded yet, lime)
+      → 拜訪過-評估中 (Visited – Undecided: worth another try later, yellow)
       → 拜訪過-拒絕 (Visited – Declined, red)
       → 已合作 (Partnered, green)
         → 已合作-流失 (Partnered – Churned, purple)
 ```
 
-If you add a status or column, update it in three places: `nst/js/shops.js` (`STATUS_LABELS`), `map.html` (`STATUS_STYLE`, matching hex colors), and both tools' CSV parsers/dropdowns.
+If you add a status, update it everywhere the vocabulary is duplicated: `nst/js/shops.js` (`STATUS_LABELS`), `map.html` (`STATUS_STYLE`, matching hex colors + the CSV upload hint text), `nst/shops.html` (three `<select>`s — filter dropdown, bulk-status dropdown, add/edit modal — plus `VALID_STATUSES` and the CSV import hint text), and `nst/shop-detail.html` (edit modal `<select>`). A new badge color needs a matching `.badge-*` class added to `nst/css/nst-shared.css`.
 
 ## Auth model
 
