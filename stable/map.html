@@ -132,6 +132,8 @@ table.sh-table th{text-align:left;font-size:9px;font-weight:700;text-transform:u
 table.sh-table td{padding:5px 6px;border-bottom:1px solid #F0F1F4;vertical-align:middle;}
 table.sh-table tbody tr{cursor:pointer;}
 table.sh-table tbody tr:hover{background:var(--accent-light);}
+.shop-search-row:hover{background:var(--accent-light);}
+.shop-search-row:last-child{border-bottom:none;}
 .sh-name{font-weight:600;max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .sh-badge{display:inline-block;font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;}
 /* scenarios */
@@ -551,6 +553,8 @@ const STATUS_STYLE={
   '電訪過':      {color:'#137ECE',bg:'#E8F3FB',label:'電訪過 Phone Contacted'},
   '電訪過-拒絕': {color:'#E65100',bg:'#FFF3E0',label:'電訪過-拒絕 Phone Contacted (Declined)'},
   '拜訪過':      {color:'#0F8A80',bg:'#E3F6F4',label:'拜訪過 Visited'},
+  '拜訪過-有意願': {color:'#5B8C1A',bg:'#ECFCCB',label:'拜訪過-有意願 Visited (Interested)'},
+  '拜訪過-評估中': {color:'#CA8A04',bg:'#FEF9C3',label:'拜訪過-評估中 Visited (Undecided)'},
   '拜訪過-拒絕': {color:'#D93025',bg:'#FEE8E7',label:'拜訪過-拒絕 Visited (Declined)'},
   '已合作':      {color:'#0B8E6A',bg:'#E6F9F4',label:'已合作 Partnered'},
   '已合作-流失': {color:'#7C3AED',bg:'#F2ECFB',label:'已合作-流失 Partnered (Churned)'},
@@ -579,6 +583,8 @@ let shops=[];          // dealer coverage pins (draggable)
 let csvLayers=[];      // [{id, name, color, data:[...shops], statusFilters:Set, visible:bool}]
 let activeLayerIds=new Set(); // which layers are shown on map
 let bikeshopData=[];   // flattened view of all visible layer shops
+let bikeshopMarkerRefs=[]; // parallel array to bikeshopData — same index, the marker on the map
+let shopSearchQuery='';    // "search for a shop by name" box in the Shops tab
 let targetRadiusKm=10;
 let colorMode='density';
 let activeScenarioId=null;
@@ -632,13 +638,29 @@ function ensureLayerFilterDefaults(layer){
   if(!layer.regionFilters)layer.regionFilters=new Set([...new Set(layer.data.map(s=>s.region).filter(Boolean))]);
   if(!layer.countyFilters)layer.countyFilters=new Set([...new Set(layer.data.map(s=>s.county).filter(Boolean))]);
   if(!layer.salesRepFilters)layer.salesRepFilters=new Set([...new Set(layer.data.map(s=>s.sales_rep).filter(Boolean))]);
+  // Campaigns are global (not dataset-scoped like Merida OEM) — a shop with no campaign_id
+  // always passes, same "empty = show everything" convention as region/county/sales-rep above.
+  if(!layer.campaignFilters)layer.campaignFilters=new Set([...new Set(layer.data.map(s=>s.campaign_id).filter(Boolean))]);
   if(!layer.gRatingBucketFilters)layer.gRatingBucketFilters=new Set(GRATING_BUCKETS.map(b=>b.key));
   if(!layer.rCountBucketFilters)layer.rCountBucketFilters=new Set(RCOUNT_BUCKETS.map(b=>b.key));
   // Priority is a strict whitelist like statusFilters (not the "empty = show everything"
   // convention below) — the whole point is being able to narrow down to just P1, so a shop
   // with no priority set needs its own selectable "none" bucket rather than always passing.
   if(!layer.priorityFilters)layer.priorityFilters=new Set(PRIORITY_ORDER.map(p=>p.key));
+  // Only meaningful/shown for Merida-named research layers (see isMeridaLayer) — the
+  // 'yes'/'no' bucket convention mirrors ratingFilters etc. so the same chip-group code path
+  // can render it, but it's initialized for every layer for simplicity.
+  if(!layer.meridaOemFilters)layer.meridaOemFilters=new Set(['yes','no']);
   if(!layer.kind)layer.kind='sales';
+}
+// A dataset layer is "Merida" if its resolved dataset metadata is the MERIDA entry, or (for
+// CSV-uploaded layers without dataset metadata) its name loosely matches — same substring
+// convention as resolveDatasetMeta's own fallback matching.
+function isMeridaLayer(layer){
+  if(!layer)return false;
+  const meta=resolveDatasetMeta(layer.name);
+  if(meta)return meta===DATASET_META['MERIDA'];
+  return(layer.name||'').toLowerCase().includes('merida');
 }
 /* "Select all / Deselect all" per filter group — recomputes the same key list each chip group
    is built from (rather than passing it through HTML) so the button always matches whatever's
@@ -653,6 +675,8 @@ function allKeysForField(layer,field){
     case'regionFilters':return[...new Set(layer.data.map(s=>s.region).filter(Boolean))];
     case'countyFilters':return[...new Set(layer.data.map(s=>s.county).filter(Boolean))];
     case'salesRepFilters':return[...new Set(layer.data.map(s=>s.sales_rep).filter(Boolean))];
+    case'meridaOemFilters':return['yes','no'];
+    case'campaignFilters':return[...new Set(layer.data.map(s=>s.campaign_id).filter(Boolean))];
     default:return[];
   }
 }
@@ -681,6 +705,7 @@ function shopPassesLayerFilters(shop,layer,exceptField){
   if(exceptField!=='regionFilters' && shop.region && layer.regionFilters.size>0 && !layer.regionFilters.has(shop.region))return false;
   if(exceptField!=='countyFilters' && shop.county && layer.countyFilters.size>0 && !layer.countyFilters.has(shop.county))return false;
   if(exceptField!=='salesRepFilters' && shop.sales_rep && layer.salesRepFilters.size>0 && !layer.salesRepFilters.has(shop.sales_rep))return false;
+  if(exceptField!=='campaignFilters' && shop.campaign_id && layer.campaignFilters.size>0 && !layer.campaignFilters.has(shop.campaign_id))return false;
   if(exceptField!=='gRatingBucketFilters'){
     const grb=gRatingBucketKey(shop.google_rating);
     if(layer.gRatingBucketFilters.size>0 && !layer.gRatingBucketFilters.has(grb))return false;
@@ -688,6 +713,12 @@ function shopPassesLayerFilters(shop,layer,exceptField){
   if(exceptField!=='rCountBucketFilters'){
     const rcb=rCountBucketKey(shop.google_rating_count);
     if(layer.rCountBucketFilters.size>0 && !layer.rCountBucketFilters.has(rcb))return false;
+  }
+  // Only enforced for Merida layers — on any other layer the chip group is hidden and the
+  // Set stays at its default {yes,no}, i.e. always both true, so this is a no-op there.
+  if(exceptField!=='meridaOemFilters' && isMeridaLayer(layer)){
+    const mk=shop.sells_merida_oem?'yes':'no';
+    if(layer.meridaOemFilters.size>0 && !layer.meridaOemFilters.has(mk))return false;
   }
   return true;
 }
@@ -1160,6 +1191,7 @@ function setClusterEnabled(v){
 }
 function rebuildBikeshopMarkers(){
   bikeshopGroup.clearLayers();
+  bikeshopMarkerRefs=[];
   if(csvLayers.length===0)return;
   rebuildBikeshopDataFromLayers();
   bikeshopData.forEach(shop=>{
@@ -1173,30 +1205,32 @@ function rebuildBikeshopMarkers(){
     const m=L.circleMarker([shop.lat,shop.lng],{
       radius:7,color:'#fff',weight:1.8,fillColor:fillColor,fillOpacity:0.9,pane:'shopPane'
     }).addTo(bikeshopGroup);
+    bikeshopMarkerRefs.push(m); // same index as shop within bikeshopData — used by the shop search "jump to" feature
     m.bindPopup(buildBikeshopPopup(shop),{maxWidth:230,closeOnClick:false});
     // Hover shows a lightweight read-only preview (no color swatches/edit form/links) so
     // glancing across many pins is cheap; an actual click "pins" it open as the full,
-    // editable popup. clickedOpen tracks which state we're in per-marker — reset on
-    // popupclose so hovering the same pin again later goes back to the light preview
-    // instead of jumping straight to full.
-    let clickedOpen=false;
+    // editable popup. m._clickedOpen tracks which state we're in per-marker — reset on
+    // popupclose so hovering the same pin again later goes back to the light preview instead
+    // of jumping straight to full. Kept as a marker property (not a closure var) so the shop
+    // search "jump to" feature can trigger the same full-popup-open behavior from outside.
+    m._clickedOpen=false;
     m.on('mouseover',()=>{
-      if(clickedOpen)return;
+      if(m._clickedOpen)return;
       m.closePopup();
       m.setPopupContent(buildBikeshopPreviewPopup(shop));
       m.openPopup();
     });
     m.on('mouseout',()=>{
-      if(clickedOpen)return;
+      if(m._clickedOpen)return;
       m.closePopup();
     });
-    m.on('popupclose',()=>{clickedOpen=false;});
+    m.on('popupclose',()=>{m._clickedOpen=false;});
     m.on('click',e=>{
       L.DomEvent.stopPropagation(e);
-      // closePopup() fires 'popupclose' synchronously, which would reset clickedOpen back to
+      // closePopup() fires 'popupclose' synchronously, which would reset _clickedOpen back to
       // false via the listener above if set beforehand — set it true AFTER closing, not before.
       m.closePopup();
-      clickedOpen=true;
+      m._clickedOpen=true;
       m.setPopupContent(buildBikeshopPopup(shop));
       m.openPopup();
     });
@@ -1357,10 +1391,14 @@ function buildBikeshopPopup(shop){
       <a href="${fullEditHref}" target="_blank" rel="noopener" class="btn" style="font-size:10px;padding:3px 8px;margin-top:6px;width:100%;display:block;text-align:center;box-sizing:border-box;">🔗 開啟完整編輯 Open full edit</a>
     </div>`:'';
   const priorityBadge=shop.priority&&PRIORITY_STYLE[shop.priority]?`<span class="bs-badge" style="background:${esc(PRIORITY_STYLE[shop.priority].bg)};color:${esc(PRIORITY_STYLE[shop.priority].color)};margin-left:5px;">${esc(PRIORITY_STYLE[shop.priority].label)}</span>`:'';
+  const meridaOemBadge=shop.sells_merida_oem?`<span class="bs-badge" style="background:#1FA67A1A;color:#1FA67A;margin-left:5px;">美利達OEM Merida OEM</span>`:'';
+  const goQtyBadge=shop.go_sample_qty?`<span class="bs-badge" style="background:#E8F3FB;color:#137ECE;margin-left:5px;">GO×${shop.go_sample_qty}</span>`:'';
+  const ultraQtyBadge=shop.ultra_sample_qty?`<span class="bs-badge" style="background:#F2ECFB;color:#7C3AED;margin-left:5px;">Ultra×${shop.ultra_sample_qty}</span>`:'';
+  const campaignBadge=shop.campaign_id?`<span class="bs-badge" style="background:#FFF3E0;color:#E65100;margin-left:5px;">🎯 ${esc(campaignNameById(shop.campaign_id)||'Campaign')}</span>`:'';
   return`<div class="bs-popup">
     <div class="bs-name">${esc(shop.name)}</div>
     ${layer?`<div style="font-size:10px;margin-bottom:4px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${esc(layer.color)};margin-right:4px;vertical-align:middle;"></span>${esc(layer.name)}</div>`:''}
-    <span class="bs-badge" style="background:${esc(st.bg)};color:${esc(st.color)}">${esc(st.label)}</span>${priorityBadge}${ratingBadge}${googleRatingBadge}
+    <span class="bs-badge" style="background:${esc(st.bg)};color:${esc(st.color)}">${esc(st.label)}</span>${priorityBadge}${meridaOemBadge}${goQtyBadge}${ultraQtyBadge}${campaignBadge}${ratingBadge}${googleRatingBadge}
     ${shop.address?`<div class="bs-addr">${esc(shop.address)}</div>`:''}
     ${categoryLine}
     ${phoneLine}
@@ -1390,10 +1428,14 @@ function buildBikeshopPreviewPopup(shop){
   const categoryLine=shop.category?`<div class="bs-addr" style="color:var(--soft,#798BA5);">${esc(shop.category)}${shop.business_status&&shop.business_status!=='OPERATIONAL'?` · ${esc(shop.business_status)}`:''}</div>`:'';
   const phoneLine=shop.contact_phone?`<div class="bs-addr">Tel: ${esc(shop.contact_phone)}</div>`:'';
   const priorityBadge=shop.priority&&PRIORITY_STYLE[shop.priority]?`<span class="bs-badge" style="background:${esc(PRIORITY_STYLE[shop.priority].bg)};color:${esc(PRIORITY_STYLE[shop.priority].color)};margin-left:5px;">${esc(PRIORITY_STYLE[shop.priority].label)}</span>`:'';
+  const meridaOemBadge=shop.sells_merida_oem?`<span class="bs-badge" style="background:#1FA67A1A;color:#1FA67A;margin-left:5px;">美利達OEM Merida OEM</span>`:'';
+  const goQtyBadge=shop.go_sample_qty?`<span class="bs-badge" style="background:#E8F3FB;color:#137ECE;margin-left:5px;">GO×${shop.go_sample_qty}</span>`:'';
+  const ultraQtyBadge=shop.ultra_sample_qty?`<span class="bs-badge" style="background:#F2ECFB;color:#7C3AED;margin-left:5px;">Ultra×${shop.ultra_sample_qty}</span>`:'';
+  const campaignBadge=shop.campaign_id?`<span class="bs-badge" style="background:#FFF3E0;color:#E65100;margin-left:5px;">🎯 ${esc(campaignNameById(shop.campaign_id)||'Campaign')}</span>`:'';
   return`<div class="bs-popup">
     <div class="bs-name">${esc(shop.name)}</div>
     ${layer?`<div style="font-size:10px;margin-bottom:4px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${esc(layer.color)};margin-right:4px;vertical-align:middle;"></span>${esc(layer.name)}</div>`:''}
-    <span class="bs-badge" style="background:${esc(st.bg)};color:${esc(st.color)}">${esc(st.label)}</span>${priorityBadge}${ratingBadge}${googleRatingBadge}
+    <span class="bs-badge" style="background:${esc(st.bg)};color:${esc(st.color)}">${esc(st.label)}</span>${priorityBadge}${meridaOemBadge}${goQtyBadge}${ultraQtyBadge}${campaignBadge}${ratingBadge}${googleRatingBadge}
     ${shop.address?`<div class="bs-addr">${esc(shop.address)}</div>`:''}
     ${categoryLine}
     ${phoneLine}
@@ -1547,7 +1589,27 @@ async function refreshShopDbDatasets(){
   if(document.getElementById('tab-shops'))renderShopsTab();
 }
 
-const SHOP_FETCH_COLUMNS='id,name,address,lat,lng,status,priority,contact_name,contact_phone,notes,region,county,district,coord_status,category,sales_rep,google_name,google_address,google_place_id,google_rating,google_rating_count,business_status,dataset_id';
+// Campaigns (public.campaigns) — time-boxed outreach drives, independent of priority/status/
+// dataset. Same load-once-cache pattern as shopDbDatasets above.
+let shopDbCampaigns=null; // null = not yet loaded; [] = loaded, empty. [{id,name}] from public.campaigns
+async function refreshShopDbCampaigns(){
+  if(!currentUser)return;
+  try{
+    const{data,error}=await sbClient.from('campaigns').select('id,name').order('name');
+    if(error)throw error;
+    shopDbCampaigns=data||[];
+  }catch(e){
+    shopDbCampaigns=[];
+  }
+  if(document.getElementById('tab-shops'))renderShopsTab();
+}
+function campaignNameById(id){
+  if(!id)return null;
+  const c=(shopDbCampaigns||[]).find(c=>c.id===id);
+  return c?c.name:null;
+}
+
+const SHOP_FETCH_COLUMNS='id,name,address,lat,lng,status,priority,contact_name,contact_phone,notes,region,county,district,coord_status,category,sales_rep,google_name,google_address,google_place_id,google_rating,google_rating_count,business_status,dataset_id,sells_merida_oem,go_sample_qty,ultra_sample_qty,campaign_id';
 /* PostgREST caps rows per request at a server-configured max (1000 by default on Supabase) —
    a single query silently truncates instead of erroring, which is how "Taiwan Bike Shops"
    (2,550 rows) previously showed as exactly 1000/1000. Page through with .range() until a
@@ -1595,6 +1657,10 @@ function mapShopDbRows(mappable,layerId,layerColor){
     google_rating:s.google_rating!=null?parseFloat(s.google_rating):null,
     google_rating_count:s.google_rating_count!=null?parseInt(s.google_rating_count,10):null,
     business_status:s.business_status||null,
+    sells_merida_oem:!!s.sells_merida_oem,
+    go_sample_qty:s.go_sample_qty||null,
+    ultra_sample_qty:s.ultra_sample_qty||null,
+    campaign_id:s.campaign_id||null,
     _layerId:layerId,
     _layerColor:layerColor,
     _dbId:s.id
@@ -1851,6 +1917,52 @@ function legendHtml(){
     <div class="lrow"><span class="swatch" style="background:#163E82"></span>&gt;3000</div>`;
 }
 
+/* ══ shop search ("find a shop by name, jump to it on the map") ══ */
+// Searches bikeshopData (whatever's currently shown on the map — active layers, current
+// filters) rather than every loaded shop, since a match needs a real marker on the map to jump
+// to. A shop hidden by a layer being off or by an active filter chip won't show up here.
+function buildShopSearchResultsHtml(){
+  const q=shopSearchQuery.trim();
+  if(!q)return'';
+  const ql=q.toLowerCase();
+  const matches=[];
+  bikeshopData.forEach((shop,idx)=>{
+    if(shop.name&&shop.name.toLowerCase().includes(ql))matches.push({shop,idx});
+  });
+  if(matches.length===0){
+    return`<div style="font-size:11px;color:var(--soft);padding:8px 2px;">找不到符合「${esc(q)}」的店家 No shops match "${esc(q)}"</div>`;
+  }
+  const rows=matches.slice(0,50).map(({shop,idx})=>
+    `<div class="shop-search-row" data-idx="${idx}" style="display:flex;align-items:center;gap:8px;padding:6px 8px;cursor:pointer;border-bottom:1px solid var(--border);">
+      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${esc(shop._layerColor||'#888')};flex-shrink:0;"></span>
+      <span style="flex:1;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(shop.name)}">${esc(shop.name)}</span>
+      <span style="font-size:10px;color:var(--soft);flex-shrink:0;">${esc(shop.county||'—')}</span>
+    </div>`
+  ).join('');
+  return`<div class="shop-search-results" style="margin-top:4px;max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">${rows}</div>${matches.length>50?`<div style="font-size:10px;color:var(--soft);padding:4px 2px;">顯示前50筆，共${matches.length}筆符合 Showing first 50 of ${matches.length} matches</div>`:''}`;
+}
+function updateShopSearchResults(){
+  const el=document.getElementById('shopSearchResults');
+  if(!el)return;
+  el.innerHTML=buildShopSearchResultsHtml();
+  el.querySelectorAll('.shop-search-row').forEach(row=>{
+    row.addEventListener('click',()=>jumpToBikeshopByIndex(parseInt(row.dataset.idx,10)));
+  });
+}
+// Pans/zooms to the shop and opens its real marker popup in the same "full, editable" state a
+// direct click on the pin would — reuses the marker's own _clickedOpen flag (see
+// rebuildBikeshopMarkers) so hover/click behavior stays consistent afterward.
+function jumpToBikeshopByIndex(idx){
+  const shop=bikeshopData[idx];
+  const marker=bikeshopMarkerRefs[idx];
+  if(!shop||!marker)return;
+  map.setView([shop.lat,shop.lng],Math.max(map.getZoom(),16));
+  marker.closePopup();
+  marker._clickedOpen=true;
+  marker.setPopupContent(buildBikeshopPopup(shop));
+  marker.openPopup();
+}
+
 /* ══ shops tab ══ */
 function renderShopsTab(){
   const el=document.getElementById('tab-shops');
@@ -1859,6 +1971,7 @@ function renderShopsTab(){
   if(badge)badge.textContent=csvLayers.length>0?`(${bikeshopData.length})`:'';
 
   if(shopDbDatasets===null)refreshShopDbDatasets();
+  if(shopDbCampaigns===null)refreshShopDbCampaigns();
   const datasetOptionsHtml=(shopDbDatasets||[]).map(d=>`<option value="${esc(d.id)}">${esc(d.name)}</option>`).join('');
   const dbSelect=`<select id="shopDbDatasetSelect" class="btn" style="width:100%;margin-bottom:6px;">
       <option value="all">全部店家 All shops</option>
@@ -1870,9 +1983,17 @@ function renderShopsTab(){
     ?`<div class="upload-zone" id="uploadZone">
         <div class="uz-icon">📋</div>
         <div class="uz-title">上傳資料集 Upload dataset</div>
-        <div class="uz-sub">CSV 格式，需含 lat/GISY, lng/GISX 欄位（與 Shop DB 共用標準）<br>columns: name, status, priority, address, category, contact_name, contact_phone, notes, rating, lat, lng<br>status: 尚未開發 / 電訪過 / 電訪過-拒絕 / 拜訪過 / 拜訪過-拒絕 / 已合作 / 已合作-流失<br>priority: P1 / P2 / P3（optional）</div>
+        <div class="uz-sub">CSV 格式，需含 lat/GISY, lng/GISX 欄位（與 Shop DB 共用標準）<br>columns: name, status, priority, address, category, contact_name, contact_phone, notes, rating, lat, lng<br>status: 尚未開發 / 電訪過 / 電訪過-拒絕 / 拜訪過 / 拜訪過-有意願 / 拜訪過-評估中 / 拜訪過-拒絕 / 已合作 / 已合作-流失<br>priority: P1 / P2 / P3（optional）</div>
       </div>${dbBtn}`
     :`<button class="btn btn-teal" id="addLayerBtn" style="width:100%;margin-bottom:8px;">＋ 新增位置資料集 Add location dataset</button>${dbBtn}`;
+
+  // Search box — finds a shop by name across whatever's currently shown on the map (active
+  // layers, respecting their current filters) and jumps to it on click. Restricted to shops
+  // that are actually rendered right now, since "jump to it" needs a real marker to open.
+  const searchHtml=csvLayers.length>0?`<div class="shop-search-wrap" style="margin-bottom:10px;">
+      <input type="text" id="shopSearchInput" class="btn" style="width:100%;text-align:left;font-weight:500;box-sizing:border-box;" placeholder="🔍 搜尋店名 Search shop name…" value="${esc(shopSearchQuery)}">
+      <div id="shopSearchResults">${buildShopSearchResultsHtml()}</div>
+    </div>`:'';
 
   let layersHtml='';
   const RATING_COLORS={'A':'#0E8F6B','B':'#E08E2C','C':'#E0584A','D':'#8B5CF6','E':'#798BA5'};
@@ -1881,9 +2002,17 @@ function renderShopsTab(){
     ensureLayerFilterDefaults(layer);
     const visCount=layer.data.filter(s=>shopPassesLayerFilters(s,layer)).length;
     const kind=layer.kind||'sales';
-    // research/infrastructure datasets (GIANT/MERIDA/全國電子/YouBike) aren't sales pipelines —
-    // hide the status + sales-rep filter groups for them ("we don't need filters like 開發 etc")
-    const showStatusRep=kind==='sales';
+    // Status + priority are useful on any real shop dataset — a research layer's shops still
+    // have a real status (e.g. MERIDA's OEM dealers are already 已合作) and priority is just as
+    // meaningful for deciding who to visit first there — so those two now show for research
+    // layers too, not just 'sales'. Infrastructure layers (YouBike docks) are the one exception:
+    // their popup (buildBikeshopPopup) never shows status/priority at all for them (a dock isn't
+    // a sales prospect), so showing the filter chips would just be clutter with nothing to filter.
+    // The internal A–E tier and sales-rep assignment are genuinely sales-pipeline-only concepts
+    // (rep territory assignment doesn't apply to Merida's own dealer network etc.), so those stay
+    // restricted to kind==='sales'.
+    const showStatus=kind!=='infrastructure';
+    const showSalesRepAndTier=kind==='sales';
     const showRatingFilters=kind!=='infrastructure';
     const statChips=[...new Set(layer.data.map(s=>s.status))].map(st=>{
       const style=statusStyle(st);
@@ -1931,19 +2060,39 @@ function renderShopsTab(){
       const active=layer.salesRepFilters.has(sr);
       return`<span class="sf-chip${active?' active':''}" data-lid="${esc(layer.id)}" data-salesrep="${esc(sr)}" style="--dot-color:#8B5CF6;font-size:10px;padding:2px 7px;"><span class="sf-dot"></span>${esc(sr)}<span class="sf-count">${cnt}</span></span>`;
     }).join('');
+    // Merida OEM flag chip group — only meaningful/shown on the Merida dataset layer, since
+    // sells_merida_oem isn't a concept that applies to any other dataset (see isMeridaLayer).
+    const isMerida=isMeridaLayer(layer);
+    const MERIDA_OEM_LABELS={yes:'美利達OEM經銷商 Merida OEM dealer',no:'非美利達OEM Not OEM dealer'};
+    const meridaOemChips=isMerida?['yes','no'].map(k=>{
+      const cnt=layer.data.filter(s=>(s.sells_merida_oem?'yes':'no')===k&&shopPassesLayerFilters(s,layer,'meridaOemFilters')).length;
+      const active=layer.meridaOemFilters.has(k);
+      return`<span class="sf-chip${active?' active':''}" data-lid="${esc(layer.id)}" data-meridaoem="${k}" style="--dot-color:#1FA67A;font-size:10px;padding:2px 7px;"><span class="sf-dot"></span>${esc(MERIDA_OEM_LABELS[k])}<span class="sf-count">${cnt}</span></span>`;
+    }).join(''):'';
+    // Campaign chip group — global (not dataset-scoped), only shown when this layer actually
+    // has shops tagged with a campaign. Same chip-per-value pattern as sales rep above.
+    const campaignIds=[...new Set(layer.data.map(s=>s.campaign_id).filter(Boolean))];
+    const campaignChips=campaignIds.map(cid=>{
+      const cnt=layer.data.filter(s=>s.campaign_id===cid&&shopPassesLayerFilters(s,layer,'campaignFilters')).length;
+      const active=layer.campaignFilters.has(cid);
+      const label=campaignNameById(cid)||'Campaign';
+      return`<span class="sf-chip${active?' active':''}" data-lid="${esc(layer.id)}" data-campaign="${esc(cid)}" style="--dot-color:#E65100;font-size:10px;padding:2px 7px;"><span class="sf-dot"></span>${esc(label)}<span class="sf-count">${cnt}</span></span>`;
+    }).join('');
     // All applicable filter groups for this layer, gated by kind — collapsed by default behind
     // the "⚙ Filters" button so a growing number of datasets/filter dimensions doesn't clutter
     // the list. layer._filtersOpen is in-memory UI state, not persisted.
     const priorityColorBtn=`<button class="btn layer-priority-color-btn" data-lid="${esc(layer.id)}" style="font-size:9px;padding:1px 6px;${layer.colorByPriority?'background:var(--accent-light);border-color:var(--accent);color:var(--accent);':''}">🎨 依優先順序著色 Color by priority</button>`;
     const filterGroups=[
-      showStatusRep?`${groupHeader('狀態 Status',layer.id,'statusFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${statChips}</div>`:'',
-      showStatusRep?`${groupHeader('優先順序 Priority',layer.id,'priorityFilters',priorityColorBtn)}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${priorityChips}</div>`:'',
-      (showStatusRep&&ratingGroups.length)?`${groupHeader('店家等級 Shop rating',layer.id,'ratingFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${ratingChips}</div>`:'',
+      showStatus?`${groupHeader('狀態 Status',layer.id,'statusFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${statChips}</div>`:'',
+      showStatus?`${groupHeader('優先順序 Priority',layer.id,'priorityFilters',priorityColorBtn)}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${priorityChips}</div>`:'',
+      (showSalesRepAndTier&&ratingGroups.length)?`${groupHeader('店家等級 Shop rating',layer.id,'ratingFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${ratingChips}</div>`:'',
       showRatingFilters?`${groupHeader('Google 評分 Google rating',layer.id,'gRatingBucketFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${gRatingChips}</div>`:'',
       showRatingFilters?`${groupHeader('Google 評論數 Review count',layer.id,'rCountBucketFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${rCountChips}</div>`:'',
       regions.length?`${groupHeader('地區 Region',layer.id,'regionFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${regionChips}</div>`:'',
       counties.length?`${groupHeader('縣市 County',layer.id,'countyFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${countyChips}</div>`:'',
-      (showStatusRep&&salesReps.length)?`${groupHeader('業務員 Sales rep',layer.id,'salesRepFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;">${salesRepChips}</div>`:''
+      (showSalesRepAndTier&&salesReps.length)?`${groupHeader('業務員 Sales rep',layer.id,'salesRepFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${salesRepChips}</div>`:'',
+      isMerida?`${groupHeader('美利達 OEM Merida OEM',layer.id,'meridaOemFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${meridaOemChips}</div>`:'',
+      campaignIds.length?`${groupHeader('計畫 Campaign',layer.id,'campaignFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;">${campaignChips}</div>`:''
     ].filter(Boolean).join('');
     const filtersOpen=!!layer._filtersOpen;
     layersHtml+=`<div class="layer-card" style="border:1.5px solid ${isActive?layer.color:'var(--border)'};border-radius:9px;padding:9px 11px;margin-bottom:8px;">
@@ -1978,7 +2127,17 @@ function renderShopsTab(){
     tableHtml=`<div class="shop-table-wrap" style="margin-top:8px;"><table class="sh-table"><thead><tr><th>店名</th><th>資料集</th></tr></thead><tbody>${rows}</tbody></table>${bikeshopData.length>300?`<div style="font-size:10px;color:var(--soft);padding:5px 0">顯示前300筆，共${bikeshopData.length}筆</div>`:''}</div>`;
   }
 
-  el.innerHTML=uploadHtml+layersHtml+tableHtml;
+  el.innerHTML=uploadHtml+searchHtml+layersHtml+tableHtml;
+
+  if(csvLayers.length>0){
+    const searchInput=document.getElementById('shopSearchInput');
+    searchInput.addEventListener('input',()=>{
+      shopSearchQuery=searchInput.value;
+      // Only refresh the results list, not the whole tab — a full renderShopsTab() would
+      // replace this very input element and drop keyboard focus mid-keystroke.
+      updateShopSearchResults();
+    });
+  }
 
   if(csvLayers.length===0){
     document.getElementById('uploadZone').addEventListener('click',()=>document.getElementById('csvInput').click());
@@ -2094,6 +2253,12 @@ function renderShopsTab(){
       } else if(chip.dataset.salesrep!==undefined){
         const sr=chip.dataset.salesrep;
         if(layer.salesRepFilters.has(sr))layer.salesRepFilters.delete(sr);else layer.salesRepFilters.add(sr);
+      } else if(chip.dataset.meridaoem!==undefined){
+        const k=chip.dataset.meridaoem;
+        if(layer.meridaOemFilters.has(k))layer.meridaOemFilters.delete(k);else layer.meridaOemFilters.add(k);
+      } else if(chip.dataset.campaign!==undefined){
+        const cid=chip.dataset.campaign;
+        if(layer.campaignFilters.has(cid))layer.campaignFilters.delete(cid);else layer.campaignFilters.add(cid);
       }
       persistBikeshops();rebuildBikeshopMarkers();renderShopsTab();
     });
@@ -2390,7 +2555,8 @@ function persistBikeshops(){
     // a bare Set into "{}", so each one must be spread into a plain array here and rebuilt back
     // into a Set in loadSession(). (regionFilters/salesRepFilters previously fell through this
     // gap — a reload would leave them as inert {} objects instead of Sets — fixed alongside the
-    // two new bucket filters below since they'd have hit the exact same bug.)
+    // two new bucket filters below since they'd have hit the exact same bug. meridaOemFilters/
+    // campaignFilters had the exact same gap when they were added later — fixed here too.)
     const serializableLayers=csvLayers.map(l=>({...l,
       statusFilters:[...l.statusFilters],
       priorityFilters:l.priorityFilters?[...l.priorityFilters]:[],
@@ -2399,7 +2565,9 @@ function persistBikeshops(){
       countyFilters:l.countyFilters?[...l.countyFilters]:[],
       salesRepFilters:l.salesRepFilters?[...l.salesRepFilters]:[],
       gRatingBucketFilters:l.gRatingBucketFilters?[...l.gRatingBucketFilters]:[],
-      rCountBucketFilters:l.rCountBucketFilters?[...l.rCountBucketFilters]:[]
+      rCountBucketFilters:l.rCountBucketFilters?[...l.rCountBucketFilters]:[],
+      meridaOemFilters:l.meridaOemFilters?[...l.meridaOemFilters]:[],
+      campaignFilters:l.campaignFilters?[...l.campaignFilters]:[]
     }));
     localStorage.setItem(BIKESHOPS_STORAGE_KEY,JSON.stringify({layers:serializableLayers,activeLayerIds:[...activeLayerIds]}));
     const badge=document.getElementById('shopTabBadge');if(badge&&bikeshopData.length>0)badge.textContent=`(${bikeshopData.length})`;
@@ -2418,6 +2586,12 @@ function loadSession(){
         // Array.isArray guards: layers persisted before this fix have regionFilters/
         // salesRepFilters as stale "{}" objects (Set serialized wrong), which would throw if
         // passed straight into `new Set(...)` (not iterable) — fall back to empty instead.
+        // meridaOemFilters falling back to [] here (rather than ['yes','no']) is fine even
+        // though that changes its "show everything" meaning — ensureLayerFilterDefaults'
+        // `!layer.meridaOemFilters` check no longer applies once this key exists at all, but an
+        // empty Set already means "no filter active" by the same convention every other Set here
+        // uses, so old sessions just silently regain the "show everything" behavior instead of
+        // erroring.
         csvLayers=b.layers.map(l=>({...l,
           statusFilters:new Set(Array.isArray(l.statusFilters)?l.statusFilters:[]),
           priorityFilters:new Set(Array.isArray(l.priorityFilters)?l.priorityFilters:PRIORITY_ORDER.map(p=>p.key)),
@@ -2426,7 +2600,9 @@ function loadSession(){
           countyFilters:new Set(Array.isArray(l.countyFilters)?l.countyFilters:[]),
           salesRepFilters:new Set(Array.isArray(l.salesRepFilters)?l.salesRepFilters:[]),
           gRatingBucketFilters:new Set(Array.isArray(l.gRatingBucketFilters)?l.gRatingBucketFilters:[]),
-          rCountBucketFilters:new Set(Array.isArray(l.rCountBucketFilters)?l.rCountBucketFilters:[])
+          rCountBucketFilters:new Set(Array.isArray(l.rCountBucketFilters)?l.rCountBucketFilters:[]),
+          meridaOemFilters:new Set(Array.isArray(l.meridaOemFilters)?l.meridaOemFilters:[]),
+          campaignFilters:new Set(Array.isArray(l.campaignFilters)?l.campaignFilters:[])
         }));
         activeLayerIds=new Set(b.activeLayerIds||csvLayers.map(l=>l.id));
         rebuildBikeshopDataFromLayers();

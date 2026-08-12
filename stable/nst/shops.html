@@ -36,6 +36,7 @@
       <div id="normal-actions" style="display:flex;gap:8px">
         <button id="select-mode-btn" class="nst-btn nst-btn-outline">☑ 選取 Select</button>
         <button id="manage-datasets-btn" class="nst-btn nst-btn-outline">🗂 資料集 Datasets</button>
+        <button id="manage-campaigns-btn" class="nst-btn nst-btn-outline">🎯 計畫 Campaigns</button>
         <button id="export-csv-btn" class="nst-btn nst-btn-outline">⬇ 匯出 Export</button>
         <button id="import-csv-btn" class="nst-btn nst-btn-outline">↑ 匯入 CSV Import CSV</button>
         <button id="add-shop-btn" class="nst-btn nst-btn-primary">＋ 新增店家 Add shop</button>
@@ -51,6 +52,8 @@
         <option value="電訪過">電訪過 Phone Contacted</option>
         <option value="電訪過-拒絕">電訪過-拒絕 Phone Contacted (Declined)</option>
         <option value="拜訪過">拜訪過 Visited</option>
+        <option value="拜訪過-有意願">拜訪過-有意願 Visited (Interested)</option>
+        <option value="拜訪過-評估中">拜訪過-評估中 Visited (Undecided)</option>
         <option value="拜訪過-拒絕">拜訪過-拒絕 Visited (Declined)</option>
         <option value="已合作">已合作 Partnered</option>
         <option value="已合作-流失">已合作-流失 Partnered (Churned)</option>
@@ -75,8 +78,17 @@
         <option value="all">全部資料集 All datasets</option>
         <option value="unassigned">未分類 Unassigned</option>
       </select>
+      <select id="campaign-filter" class="nst-select" style="width:auto;min-width:150px">
+        <option value="all">全部計畫 All campaigns</option>
+        <option value="unassigned">未指派計畫 No campaign</option>
+      </select>
       <label style="display:flex;align-items:center;gap:6px;font-size:13px;white-space:nowrap;cursor:pointer">
         <input type="checkbox" id="only-mine-checkbox"/> 只顯示我的 Only mine
+      </label>
+      <!-- Only meaningful within the Merida dataset (shown/hidden by the dataset-filter change
+           handler) — sells_merida_oem doesn't apply to shops outside Merida's dealer network. -->
+      <label id="merida-oem-filter-label" style="display:none;align-items:center;gap:6px;font-size:13px;white-space:nowrap;cursor:pointer">
+        <input type="checkbox" id="merida-oem-filter-checkbox"/> 只顯示美利達 OEM 經銷商 Only Merida OEM dealers
       </label>
     </div>
 
@@ -93,6 +105,8 @@
           <option value="電訪過">電訪過 Phone Contacted</option>
           <option value="電訪過-拒絕">電訪過-拒絕 Phone Contacted (Declined)</option>
           <option value="拜訪過">拜訪過 Visited</option>
+          <option value="拜訪過-有意願">拜訪過-有意願 Visited (Interested)</option>
+          <option value="拜訪過-評估中">拜訪過-評估中 Visited (Undecided)</option>
           <option value="拜訪過-拒絕">拜訪過-拒絕 Visited (Declined)</option>
           <option value="已合作">已合作 Partnered</option>
           <option value="已合作-流失">已合作-流失 Partnered (Churned)</option>
@@ -111,6 +125,11 @@
           <option value="">無 None</option>
         </select>
         <button id="bulk-priority-apply-btn" class="nst-btn nst-btn-outline" disabled>套用 Apply</button>
+        <select id="bulk-campaign-select" class="nst-select" style="width:auto;min-width:170px">
+          <option value="__placeholder__" selected disabled>加入計畫... Add to campaign…</option>
+          <option value="">移除計畫 Remove from campaign</option>
+        </select>
+        <button id="bulk-campaign-apply-btn" class="nst-btn nst-btn-outline" disabled>套用 Apply</button>
         <button id="delete-selected-btn" class="nst-btn nst-btn-danger" disabled>刪除已選 Delete selected</button>
         <button id="cancel-select-btn" class="nst-btn nst-btn-ghost">取消 Cancel</button>
       </div>
@@ -141,6 +160,8 @@
         <option value="電訪過">電訪過 Phone Contacted</option>
         <option value="電訪過-拒絕">電訪過-拒絕 Phone Contacted (Declined)</option>
         <option value="拜訪過">拜訪過 Visited</option>
+        <option value="拜訪過-有意願">拜訪過-有意願 Visited (Interested)</option>
+        <option value="拜訪過-評估中">拜訪過-評估中 Visited (Undecided)</option>
         <option value="拜訪過-拒絕">拜訪過-拒絕 Visited (Declined)</option>
         <option value="已合作">已合作 Partnered</option>
         <option value="已合作-流失">已合作-流失 Partnered (Churned)</option>
@@ -180,6 +201,27 @@
       <select id="f-dataset" class="nst-select">
         <option value="">未分類 Unassigned</option>
       </select>
+      <label class="nst-field-label">計畫 Campaign</label>
+      <select id="f-campaign" class="nst-select">
+        <option value="">未指派計畫 No campaign</option>
+      </select>
+      <!-- Only relevant for shops in the Merida dataset — toggled by the f-dataset change
+           handler, not shown for other datasets. -->
+      <label id="f-merida-oem-label" class="nst-field-label" style="display:none;flex-direction:row;align-items:center;gap:6px;cursor:pointer;">
+        <input type="checkbox" id="f-merida-oem"/> 美利達 OEM 經銷商 Merida OEM dealer
+      </label>
+      <!-- How many physical GO/Ultra samples this shop has, independent of status — a shop can
+           hold a sample at any stage of the pipeline. Blank/0 = no sample. -->
+      <div style="display:flex;gap:10px;">
+        <div style="flex:1;">
+          <label class="nst-field-label">GO 樣品數量 GO sample qty</label>
+          <input id="f-go-qty" type="number" min="0" step="1" class="nst-input" placeholder="0"/>
+        </div>
+        <div style="flex:1;">
+          <label class="nst-field-label">Ultra 樣品數量 Ultra sample qty</label>
+          <input id="f-ultra-qty" type="number" min="0" step="1" class="nst-input" placeholder="0"/>
+        </div>
+      </div>
       <label class="nst-field-label">備註 Notes</label>
       <textarea id="f-notes" class="nst-textarea" placeholder="Additional notes…"></textarea>
       <div id="modal-error" class="nst-auth-error" style="margin-top:10px"></div>
@@ -203,7 +245,7 @@
       <div style="font-size:13px;color:var(--nst-gray);margin-bottom:14px;line-height:1.6">
         CSV 欄位（首行為標題，與地圖規劃工具共用同一標準）：<br/>
         <code style="font-size:11.5px;color:var(--nst-ink)">name, status, priority, address, contact_name, contact_phone, sales_rep, notes, lat/GISY, lng/GISX</code><br/>
-        <span style="font-size:12px">status 可填：尚未開發 / 電訪過 / 電訪過-拒絕 / 拜訪過 / 拜訪過-拒絕 / 已合作 / 已合作-流失（預設 尚未開發）</span><br/>
+        <span style="font-size:12px">status 可填：尚未開發 / 電訪過 / 電訪過-拒絕 / 拜訪過 / 拜訪過-有意願 / 拜訪過-評估中 / 拜訪過-拒絕 / 已合作 / 已合作-流失（預設 尚未開發）</span><br/>
         <span style="font-size:12px">priority 可填：P1 / P2 / P3（可留空 optional）</span><br/>
         <span style="font-size:12px">也會儲存：地區、縣市、鄉鎮市區、座標狀態、category、google_* 等欄位 · Also stored: region/county/district/coord_status/category/google_* columns if present</span><br/>
         <span style="font-size:12px">資料集在下方選擇，不是 CSV 欄位 · Dataset is chosen below, not a CSV column</span>
@@ -251,10 +293,30 @@
   </div>
 </div>
 
+<!-- Manage campaigns modal -->
+<div id="campaigns-modal" class="nst-modal-backdrop" style="display:none">
+  <div class="nst-modal" style="max-width:480px">
+    <div class="nst-modal-header">
+      <h3>計畫管理 Manage campaigns</h3>
+      <button class="nst-modal-close" id="campaigns-modal-close">✕</button>
+    </div>
+    <div class="nst-modal-body">
+      <div id="campaigns-list" style="margin-bottom:16px"></div>
+      <label class="nst-field-label">新增計畫 New campaign</label>
+      <input id="new-campaign-name" type="text" class="nst-input" placeholder="e.g. 2026年8月夥伴拓展計畫"/>
+      <div id="campaigns-error" class="nst-auth-error" style="margin-top:8px"></div>
+    </div>
+    <div class="nst-modal-footer">
+      <button id="campaigns-close-btn" class="nst-btn nst-btn-ghost">關閉 Close</button>
+      <button id="add-campaign-btn" class="nst-btn nst-btn-primary">＋ 新增 Add</button>
+    </div>
+  </div>
+</div>
+
 <script type="module">
 import { requireAuth, signOut } from './js/auth.js';
 import { LOGO } from './js/logo.js';
-import { loadShops, addShop, updateShop, deleteShop, STATUS_LABELS, PRIORITY_LABELS, loadUserDirectory, repLabel, loadDatasets, createDataset, updateDataset, deleteDataset, countAllShopsByDataset, loadAllShopsForDupCheck } from './js/shops.js';
+import { loadShops, addShop, updateShop, deleteShop, STATUS_LABELS, PRIORITY_LABELS, loadUserDirectory, repLabel, loadDatasets, createDataset, updateDataset, deleteDataset, countAllShopsByDataset, loadAllShopsForDupCheck, loadCampaigns, createCampaign, updateCampaign, deleteCampaign, countAllShopsByCampaign } from './js/shops.js';
 import { loadLatestVisitsByShopIds, VISIT_STATUS_LABELS } from './js/visits.js';
 import { lookupGeoFromCoords, sortCountiesNS, COUNTY_LIST_NS } from '../shared/geo.js';
 import { REGION_COLOR_BY_ZH } from '../shared/region-colors.js';
@@ -284,6 +346,7 @@ let selectionMode = false;
 let selectedIds = new Set();
 let repDirectory = []; // [{ id, email }] from public.user_directory
 let datasets = []; // [{ id, name, description, created_by, created_at }] from public.shop_datasets
+let campaigns = []; // [{ id, name, starts_on, ends_on, active, created_by, created_at }] from public.campaigns
 let latestVisitByShop = {}; // { [shop_id]: { scheduled_date, status } }
 
 function fmtDate(d) {
@@ -295,6 +358,20 @@ function datasetName(id) {
   if (!id) return null;
   const d = datasets.find(d => d.id === id);
   return d ? d.name : null;
+}
+
+function campaignName(id) {
+  if (!id) return null;
+  const c = campaigns.find(c => c.id === id);
+  return c ? c.name : null;
+}
+
+// sells_merida_oem only means something for shops in Merida's own dealer-network dataset —
+// matches map.html's resolveDatasetMeta() convention of detecting "MERIDA" by name substring
+// rather than a hardcoded id, so it still works if the dataset gets recreated.
+function isMeridaDataset(id) {
+  const name = datasetName(id);
+  return !!name && name.toLowerCase().includes('merida');
 }
 
 function statusBadge(s) {
@@ -345,6 +422,7 @@ function renderShops(shops) {
       ? `<span class="nst-card-check${checked ? ' checked' : ''}">${checked ? '✓' : ''}</span>`
       : '';
     const dsName = s.dataset_id ? (datasetName(s.dataset_id) || '—') : null;
+    const campName = s.campaign_id ? (campaignName(s.campaign_id) || '—') : null;
     const lastVisit = latestVisitByShop[s.id];
     const lastVisitText = lastVisit
       ? `${fmtDate(lastVisit.scheduled_date)} (${(VISIT_STATUS_LABELS[lastVisit.status] || {}).zh || lastVisit.status})`
@@ -358,7 +436,11 @@ function renderShops(shops) {
           ${priorityInlineSelect(s)}
           ${statusBadge(s.status)}
           ${regionBadge(s.region)}
+          ${s.sells_merida_oem ? `<span class="nst-badge badge-teal">美利達 OEM</span>` : ''}
+          ${s.go_sample_qty ? `<span class="nst-badge badge-blue">GO×${s.go_sample_qty}</span>` : ''}
+          ${s.ultra_sample_qty ? `<span class="nst-badge badge-purple">Ultra×${s.ultra_sample_qty}</span>` : ''}
           ${dsName ? `<span class="nst-badge badge-gray">🗂 ${esc(dsName)}</span>` : ''}
+          ${campName ? `<span class="nst-badge badge-orange">🎯 ${esc(campName)}</span>` : ''}
         </div>
         <a class="shop-card-open" href="shop-detail.html?id=${s.id}" title="開啟 Open">↗</a>
       </div>
@@ -412,7 +494,7 @@ function exitSelectionMode() {
 }
 
 function setBulkControlsDisabled(disabled) {
-  ['select-all-checkbox', 'bulk-status-select', 'bulk-status-apply-btn', 'bulk-rep-select', 'bulk-rep-apply-btn', 'bulk-priority-select', 'bulk-priority-apply-btn', 'delete-selected-btn']
+  ['select-all-checkbox', 'bulk-status-select', 'bulk-status-apply-btn', 'bulk-rep-select', 'bulk-rep-apply-btn', 'bulk-priority-select', 'bulk-priority-apply-btn', 'bulk-campaign-select', 'bulk-campaign-apply-btn', 'delete-selected-btn']
     .forEach(id => { document.getElementById(id).disabled = disabled; });
 }
 
@@ -428,6 +510,8 @@ function updateSelectionBar() {
   document.getElementById('bulk-rep-apply-btn').disabled = n === 0 || repVal === '__placeholder__';
   const priorityVal = document.getElementById('bulk-priority-select').value;
   document.getElementById('bulk-priority-apply-btn').disabled = n === 0 || priorityVal === '__placeholder__';
+  const campaignVal = document.getElementById('bulk-campaign-select').value;
+  document.getElementById('bulk-campaign-apply-btn').disabled = n === 0 || campaignVal === '__placeholder__';
   document.getElementById('select-all-checkbox').checked = currentShops.length > 0 && currentShops.every(s => selectedIds.has(s.id));
 }
 
@@ -461,6 +545,10 @@ async function bulkUpdateSalesRep(ids, rep) {
 
 async function bulkUpdatePriority(ids, priority) {
   await runBulkOperation(ids, '更新優先順序中 Updating priority', id => updateShop(id, { priority: priority || null }));
+}
+
+async function bulkUpdateCampaign(ids, campaignId) {
+  await runBulkOperation(ids, '更新計畫中 Updating campaign', id => updateShop(id, { campaign_id: campaignId || null }));
 }
 
 function esc(s) {
@@ -501,7 +589,17 @@ document.getElementById('export-csv-btn').addEventListener('click', () => {
   downloadShopsCSV(rows, label);
 });
 
+// The Merida-OEM filter only makes sense while looking at the Merida dataset — hide/reset it
+// otherwise so it can't silently narrow down some other dataset's results.
+function updateMeridaOemFilterVisibility() {
+  const datasetId = document.getElementById('dataset-filter').value;
+  const show = isMeridaDataset(datasetId);
+  document.getElementById('merida-oem-filter-label').style.display = show ? 'flex' : 'none';
+  if (!show) document.getElementById('merida-oem-filter-checkbox').checked = false;
+}
+
 async function refresh() {
+  updateMeridaOemFilterVisibility();
   const status = document.getElementById('status-filter').value;
   const search = document.getElementById('search-input').value.trim();
   const region = document.getElementById('region-filter').value;
@@ -509,9 +607,11 @@ async function refresh() {
   const salesRep = document.getElementById('rep-filter').value;
   const priority = document.getElementById('priority-filter').value;
   const datasetId = document.getElementById('dataset-filter').value;
+  const campaignId = document.getElementById('campaign-filter').value;
   const onlyMine = document.getElementById('only-mine-checkbox').checked;
+  const meridaOemOnly = isMeridaDataset(datasetId) && document.getElementById('merida-oem-filter-checkbox').checked;
   try {
-    currentShops = await loadShops({ status, search, region, county, salesRep, priority, datasetId, onlyMine, userId: user.id });
+    currentShops = await loadShops({ status, search, region, county, salesRep, priority, datasetId, onlyMine, meridaOemOnly, campaignId, userId: user.id });
     renderLimit = RENDER_PAGE_SIZE;
     document.getElementById('shops-count').textContent = `共 ${currentShops.length} 家店 · ${currentShops.length} shop${currentShops.length === 1 ? '' : 's'}`;
     try {
@@ -592,6 +692,26 @@ async function refreshDatasets() {
   csvSel.innerHTML = '<option value="">未分類 Unassigned</option>' + optionsHtml + '<option value="__new__">＋ 新增資料集 New dataset…</option>';
 }
 
+// Campaigns (public.campaigns) are time-boxed outreach drives, independent of both priority
+// and status — see 0012_add_campaigns.sql. No "default selection on first load" behavior like
+// datasets have; "all campaigns" is a perfectly normal default view.
+async function refreshCampaigns() {
+  try {
+    campaigns = await loadCampaigns();
+  } catch (e) {
+    campaigns = [];
+  }
+  const optionsHtml = campaigns.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+  const filterSel = document.getElementById('campaign-filter');
+  const prevValue = filterSel.value;
+  filterSel.innerHTML = '<option value="all">全部計畫 All campaigns</option><option value="unassigned">未指派計畫 No campaign</option>' + optionsHtml;
+  if ([...filterSel.options].some(o => o.value === prevValue)) filterSel.value = prevValue;
+  const fSel = document.getElementById('f-campaign');
+  fSel.innerHTML = '<option value="">未指派計畫 No campaign</option>' + optionsHtml;
+  const bulkSel = document.getElementById('bulk-campaign-select');
+  bulkSel.innerHTML = '<option value="__placeholder__" selected disabled>加入計畫... Add to campaign…</option><option value="">移除計畫 Remove from campaign</option>' + optionsHtml;
+}
+
 // Debounced search
 let searchTimer;
 document.getElementById('search-input').addEventListener('input', () => {
@@ -604,6 +724,8 @@ document.getElementById('county-filter').addEventListener('change', refresh);
 document.getElementById('rep-filter').addEventListener('change', refresh);
 document.getElementById('priority-filter').addEventListener('change', refresh);
 document.getElementById('dataset-filter').addEventListener('change', refresh);
+document.getElementById('campaign-filter').addEventListener('change', refresh);
+document.getElementById('merida-oem-filter-checkbox').addEventListener('change', refresh);
 document.getElementById('only-mine-checkbox').addEventListener('change', refresh);
 
 // Modal
@@ -634,6 +756,11 @@ function openModal(shop = null) {
   }
   fRepSel.value = currentRep;
   document.getElementById('f-dataset').value = shop ? (shop.dataset_id || '') : '';
+  document.getElementById('f-campaign').value = shop ? (shop.campaign_id || '') : '';
+  document.getElementById('f-merida-oem').checked = shop ? !!shop.sells_merida_oem : false;
+  updateMeridaOemFieldVisibility();
+  document.getElementById('f-go-qty').value = shop && shop.go_sample_qty ? shop.go_sample_qty : '';
+  document.getElementById('f-ultra-qty').value = shop && shop.ultra_sample_qty ? shop.ultra_sample_qty : '';
   document.getElementById('f-notes').value = shop ? (shop.notes || '') : '';
   document.getElementById('modal-error').textContent = '';
   editingShopCreatedBy = shop ? shop.created_by : null;
@@ -647,6 +774,13 @@ function openModal(shop = null) {
 function closeModal() {
   document.getElementById('shop-modal').style.display = 'none';
 }
+
+function updateMeridaOemFieldVisibility() {
+  const show = isMeridaDataset(document.getElementById('f-dataset').value);
+  document.getElementById('f-merida-oem-label').style.display = show ? 'flex' : 'none';
+  if (!show) document.getElementById('f-merida-oem').checked = false;
+}
+document.getElementById('f-dataset').addEventListener('change', updateMeridaOemFieldVisibility);
 
 document.getElementById('add-shop-btn').addEventListener('click', () => openModal());
 document.getElementById('modal-close-btn').addEventListener('click', closeModal);
@@ -670,6 +804,10 @@ document.getElementById('modal-save-btn').addEventListener('click', async () => 
     contact_phone: document.getElementById('f-contact-phone').value.trim() || null,
     sales_rep: document.getElementById('f-sales-rep').value || null,
     dataset_id: document.getElementById('f-dataset').value || null,
+    campaign_id: document.getElementById('f-campaign').value || null,
+    sells_merida_oem: isMeridaDataset(document.getElementById('f-dataset').value) && document.getElementById('f-merida-oem').checked,
+    go_sample_qty: document.getElementById('f-go-qty').value ? parseInt(document.getElementById('f-go-qty').value, 10) : null,
+    ultra_sample_qty: document.getElementById('f-ultra-qty').value ? parseInt(document.getElementById('f-ultra-qty').value, 10) : null,
     notes: document.getElementById('f-notes').value.trim() || null,
   };
   const btn = document.getElementById('modal-save-btn');
@@ -769,6 +907,87 @@ document.getElementById('datasets-list').addEventListener('click', async e => {
   }
 });
 
+// ── Manage campaigns modal ── (same shape as datasets above, see 0012_add_campaigns.sql)
+function renderCampaignsList(counts) {
+  const el = document.getElementById('campaigns-list');
+  if (!campaigns.length) {
+    el.innerHTML = `<div style="font-size:13px;color:var(--nst-gray)">尚無計畫 No campaigns yet</div>`;
+    return;
+  }
+  el.innerHTML = campaigns.map(c => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--nst-border)">
+      <span style="flex:1;font-weight:600;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap${c.active ? '' : ';opacity:.55'}" title="${esc(c.name)}">${esc(c.name)}${c.active ? '' : ' (已結束 ended)'}</span>
+      <span style="font-size:11.5px;color:var(--nst-gray);white-space:nowrap">${counts[c.id] || 0} 家 shops</span>
+      <button class="nst-btn nst-btn-outline nst-btn-sm campaign-toggle-btn" data-id="${esc(c.id)}">${c.active ? '結束 End' : '重啟 Reactivate'}</button>
+      <button class="nst-btn nst-btn-outline nst-btn-sm campaign-rename-btn" data-id="${esc(c.id)}">✎</button>
+      ${iAmDeleter ? `<button class="nst-btn nst-btn-danger nst-btn-sm campaign-delete-btn" data-id="${esc(c.id)}">✕</button>` : ''}
+    </div>`).join('');
+}
+
+async function openCampaignsModal() {
+  await refreshCampaigns();
+  const counts = await countAllShopsByCampaign();
+  renderCampaignsList(counts);
+  document.getElementById('new-campaign-name').value = '';
+  document.getElementById('campaigns-error').textContent = '';
+  document.getElementById('campaigns-modal').style.display = '';
+}
+
+document.getElementById('manage-campaigns-btn').addEventListener('click', openCampaignsModal);
+
+document.getElementById('campaigns-modal-close').addEventListener('click', () => { document.getElementById('campaigns-modal').style.display = 'none'; refresh(); });
+document.getElementById('campaigns-close-btn').addEventListener('click', () => { document.getElementById('campaigns-modal').style.display = 'none'; refresh(); });
+document.getElementById('campaigns-modal').addEventListener('click', e => { if (e.target === e.currentTarget) { e.currentTarget.style.display = 'none'; refresh(); } });
+
+document.getElementById('add-campaign-btn').addEventListener('click', async () => {
+  const name = document.getElementById('new-campaign-name').value.trim();
+  if (!name) { document.getElementById('campaigns-error').textContent = '請輸入名稱 Name is required'; return; }
+  try {
+    await createCampaign(name, user.id);
+    await openCampaignsModal();
+  } catch (e) {
+    document.getElementById('campaigns-error').textContent = friendlyError(e);
+  }
+});
+
+document.getElementById('campaigns-list').addEventListener('click', async e => {
+  const renameBtn = e.target.closest('.campaign-rename-btn');
+  const deleteBtn = e.target.closest('.campaign-delete-btn');
+  const toggleBtn = e.target.closest('.campaign-toggle-btn');
+  if (renameBtn) {
+    const id = renameBtn.dataset.id;
+    const c = campaigns.find(c => c.id === id);
+    const newName = prompt('計畫名稱 Campaign name:', c ? c.name : '');
+    if (!newName || !newName.trim() || (c && newName.trim() === c.name)) return;
+    try {
+      await updateCampaign(id, { name: newName.trim() });
+      await openCampaignsModal();
+    } catch (e) {
+      document.getElementById('campaigns-error').textContent = friendlyError(e);
+    }
+  } else if (toggleBtn) {
+    const id = toggleBtn.dataset.id;
+    const c = campaigns.find(c => c.id === id);
+    if (!c) return;
+    try {
+      await updateCampaign(id, { active: !c.active });
+      await openCampaignsModal();
+    } catch (e) {
+      document.getElementById('campaigns-error').textContent = friendlyError(e);
+    }
+  } else if (deleteBtn) {
+    const id = deleteBtn.dataset.id;
+    const c = campaigns.find(c => c.id === id);
+    if (!confirm(`確定要刪除計畫「${c ? c.name : ''}」嗎？此計畫內的店家不會被刪除，只會變成未指派計畫。\nDelete this campaign? Shops in it won't be deleted, just unassigned from it.`)) return;
+    try {
+      await deleteCampaign(id);
+      await openCampaignsModal();
+    } catch (e) {
+      document.getElementById('campaigns-error').textContent = friendlyError(e);
+    }
+  }
+});
+
 // The card itself isn't a link — only the ↗ icon (a real <a>) opens the shop, so it supports
 // cmd/ctrl-click and middle-click to open in a new tab like any other link.
 // In selection mode, clicking anywhere on the card (including the icon) toggles its checkbox
@@ -807,6 +1026,7 @@ document.getElementById('delete-selected-btn').addEventListener('click', async (
 document.getElementById('bulk-status-select').addEventListener('change', updateSelectionBar);
 document.getElementById('bulk-rep-select').addEventListener('change', updateSelectionBar);
 document.getElementById('bulk-priority-select').addEventListener('change', updateSelectionBar);
+document.getElementById('bulk-campaign-select').addEventListener('change', updateSelectionBar);
 
 document.getElementById('bulk-status-apply-btn').addEventListener('click', async () => {
   const n = selectedIds.size;
@@ -835,14 +1055,24 @@ document.getElementById('bulk-priority-apply-btn').addEventListener('click', asy
   await bulkUpdatePriority([...selectedIds], priority);
 });
 
+document.getElementById('bulk-campaign-apply-btn').addEventListener('click', async () => {
+  const n = selectedIds.size;
+  const campaignId = document.getElementById('bulk-campaign-select').value;
+  if (!n || campaignId === '__placeholder__') return;
+  const c = campaigns.find(c => c.id === campaignId);
+  const labelText = c ? c.name : '移除計畫 Remove from campaign';
+  if (!confirm(`確定要將已選取的 ${n} 家店家計畫改為「${labelText}」嗎？\nChange campaign of ${n} selected shops to "${labelText}"?`)) return;
+  await bulkUpdateCampaign([...selectedIds], campaignId);
+});
+
 // refreshDatasets() must resolve before the first refresh() so the "Taiwan Bike Shops" default
 // filter (set inside refreshDatasets) is in place before shops are loaded — otherwise refresh()
 // would read the stale "all datasets" value from the static HTML.
-await Promise.all([loadFilterOptions(), refreshDatasets()]);
+await Promise.all([loadFilterOptions(), refreshDatasets(), refreshCampaigns()]);
 await refresh();
 
 // ── CSV Import ──
-const VALID_STATUSES = new Set(['尚未開發','電訪過','電訪過-拒絕','拜訪過','拜訪過-拒絕','已合作','已合作-流失']);
+const VALID_STATUSES = new Set(['尚未開發','電訪過','電訪過-拒絕','拜訪過','拜訪過-有意願','拜訪過-評估中','拜訪過-拒絕','已合作','已合作-流失']);
 const VALID_PRIORITIES = new Set(['P1','P2','P3']);
 let csvRows = [];
 let csvDupMatches = []; // parallel to csvRows — matched existing shop {name,address} or null
