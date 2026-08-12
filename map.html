@@ -618,6 +618,13 @@ const PRIORITY_ORDER=[
 ];
 function priorityKey(shop){ return shop.priority||'none'; }
 function campaignKey(shop){ return shop.campaign_id||'none'; }
+// Same 'none' bucket pattern for every other filter dimension a shop can legitimately lack a
+// value for — needed so strict checkbox semantics (below) can't silently and permanently hide a
+// shop just because a field is blank; a blank value gets its own toggleable chip like anything else.
+function ratingTierKey(shop){ return shop.ratingGroup||'none'; }
+function regionKeyOf(shop){ return shop.region||'none'; }
+function countyKeyOf(shop){ return shop.county||'none'; }
+function salesRepKeyOf(shop){ return shop.sales_rep||'none'; }
 
 /* ══ state ══ */
 let shops=[];          // dealer coverage pins (draggable)
@@ -675,26 +682,26 @@ function rCountBucketKey(c){
 }
 
 function ensureLayerFilterDefaults(layer){
-  if(!layer.ratingFilters)layer.ratingFilters=new Set([...new Set(layer.data.map(s=>s.ratingGroup).filter(Boolean))]);
-  if(!layer.regionFilters)layer.regionFilters=new Set([...new Set(layer.data.map(s=>s.region).filter(Boolean))]);
-  if(!layer.countyFilters)layer.countyFilters=new Set([...new Set(layer.data.map(s=>s.county).filter(Boolean))]);
-  if(!layer.salesRepFilters)layer.salesRepFilters=new Set([...new Set(layer.data.map(s=>s.sales_rep).filter(Boolean))]);
-  // Campaigns are global (not dataset-scoped like Merida OEM). Unlike region/county/sales-rep
-  // above, an unassigned shop does NOT always pass through here — "show me only this campaign's
-  // shops" needs to actually exclude everyone not in it, including shops with no campaign at
-  // all. So this works like priorityFilters: a closed set with its own explicit 'none' bucket
-  // (via campaignKey), not a passthrough-when-blank field.
+  // Every filter group here uses strict checkbox semantics: a shop only shows if its key for
+  // that dimension is in the selected Set. Defaulting to "every key selected" means a fresh
+  // layer shows everything (as expected); deselecting a chip narrows the view; deselecting every
+  // chip in a group shows nothing — same as unchecking every box in any normal filter UI. Fields
+  // a shop can legitimately lack a value for (rating tier, region, county, sales rep, campaign)
+  // get their own explicit "none/unassigned" bucket key (via the *Key helpers above) so a blank
+  // value is a real, toggleable option instead of something that silently vanishes forever.
+  if(!layer.ratingFilters)layer.ratingFilters=new Set([...new Set(layer.data.map(s=>ratingTierKey(s)))]);
+  if(!layer.regionFilters)layer.regionFilters=new Set([...new Set(layer.data.map(s=>regionKeyOf(s)))]);
+  if(!layer.countyFilters)layer.countyFilters=new Set([...new Set(layer.data.map(s=>countyKeyOf(s)))]);
+  if(!layer.salesRepFilters)layer.salesRepFilters=new Set([...new Set(layer.data.map(s=>salesRepKeyOf(s)))]);
   if(!layer.campaignFilters)layer.campaignFilters=new Set([...new Set(layer.data.map(s=>campaignKey(s)))]);
   if(!layer.gRatingBucketFilters)layer.gRatingBucketFilters=new Set(GRATING_BUCKETS.map(b=>b.key));
   if(!layer.rCountBucketFilters)layer.rCountBucketFilters=new Set(RCOUNT_BUCKETS.map(b=>b.key));
-  // Defaults to every key selected (not empty) — narrowing to just P1 works by deselecting the
-  // others, same as every other filter group. A shop with no priority set gets its own
-  // selectable "none" bucket (PRIORITY_ORDER includes it) rather than always passing through.
   if(!layer.priorityFilters)layer.priorityFilters=new Set(PRIORITY_ORDER.map(p=>p.key));
   // Only meaningful/shown for Merida-named research layers (see isMeridaLayer) — the
-  // 'yes'/'no' bucket convention mirrors ratingFilters etc. so the same chip-group code path
-  // can render it, but it's initialized for every layer for simplicity.
+  // 'yes'/'no' bucket convention mirrors everything else so the same chip-group code path can
+  // render it, but it's initialized for every layer for simplicity.
   if(!layer.meridaOemFilters)layer.meridaOemFilters=new Set(['yes','no']);
+  if(!layer.statusFilters)layer.statusFilters=new Set(layer.data.map(s=>s.status));
   if(!layer.kind)layer.kind='sales';
 }
 // A dataset layer is "Merida" if its resolved dataset metadata is the MERIDA entry, or (for
@@ -713,12 +720,12 @@ function allKeysForField(layer,field){
   switch(field){
     case'statusFilters':return[...new Set(layer.data.map(s=>s.status))];
     case'priorityFilters':return PRIORITY_ORDER.map(p=>p.key);
-    case'ratingFilters':return[...new Set(layer.data.map(s=>s.ratingGroup).filter(Boolean))];
+    case'ratingFilters':return[...new Set(layer.data.map(s=>ratingTierKey(s)))];
     case'gRatingBucketFilters':return GRATING_BUCKETS.map(b=>b.key);
     case'rCountBucketFilters':return RCOUNT_BUCKETS.map(b=>b.key);
-    case'regionFilters':return[...new Set(layer.data.map(s=>s.region).filter(Boolean))];
-    case'countyFilters':return[...new Set(layer.data.map(s=>s.county).filter(Boolean))];
-    case'salesRepFilters':return[...new Set(layer.data.map(s=>s.sales_rep).filter(Boolean))];
+    case'regionFilters':return[...new Set(layer.data.map(s=>regionKeyOf(s)))];
+    case'countyFilters':return[...new Set(layer.data.map(s=>countyKeyOf(s)))];
+    case'salesRepFilters':return[...new Set(layer.data.map(s=>salesRepKeyOf(s)))];
     case'meridaOemFilters':return['yes','no'];
     case'campaignFilters':return[...new Set(layer.data.map(s=>campaignKey(s)))];
     default:return[];
@@ -741,35 +748,31 @@ function groupHeader(label,layerId,field,extraBtnHtml){
 // disagree wildly (e.g. a county chip showing 54 while a status filter elsewhere had already
 // narrowed the true visible set down to 18), which read as the filters "conflicting".
 function shopPassesLayerFilters(shop,layer,exceptField){
-  // statusFilters/priorityFilters used to be a special-cased strict whitelist (empty Set = show
-  // NOTHING, unlike every other filter here) on the theory that both offer a closed, exhaustive
-  // set of values so "deselect everything" is meaningful. In practice that's a footgun: clicking
-  // "清除 None" on either group — or on both while trying to isolate some other filter (e.g. the
-  // campaign chip) — silently blanks the whole map with no obvious cause. Unified to the same
-  // "empty = filter inactive" convention as everything else below; selecting a specific subset
-  // (e.g. just P1) still filters exactly as before.
-  if(exceptField!=='statusFilters' && layer.statusFilters.size>0 && !layer.statusFilters.has(shop.status))return false;
-  if(exceptField!=='priorityFilters' && layer.priorityFilters.size>0 && !layer.priorityFilters.has(priorityKey(shop)))return false;
-  // tier/region/sales-rep filters: a shop with no value for that field always passes through
-  // (not excluded just because it lacks that particular piece of data)
-  if(exceptField!=='ratingFilters' && shop.ratingGroup && layer.ratingFilters.size>0 && !layer.ratingFilters.has(shop.ratingGroup))return false;
-  if(exceptField!=='regionFilters' && shop.region && layer.regionFilters.size>0 && !layer.regionFilters.has(shop.region))return false;
-  if(exceptField!=='countyFilters' && shop.county && layer.countyFilters.size>0 && !layer.countyFilters.has(shop.county))return false;
-  if(exceptField!=='salesRepFilters' && shop.sales_rep && layer.salesRepFilters.size>0 && !layer.salesRepFilters.has(shop.sales_rep))return false;
-  if(exceptField!=='campaignFilters' && layer.campaignFilters.size>0 && !layer.campaignFilters.has(campaignKey(shop)))return false;
-  if(exceptField!=='gRatingBucketFilters'){
-    const grb=gRatingBucketKey(shop.google_rating);
-    if(layer.gRatingBucketFilters.size>0 && !layer.gRatingBucketFilters.has(grb))return false;
-  }
-  if(exceptField!=='rCountBucketFilters'){
-    const rcb=rCountBucketKey(shop.google_rating_count);
-    if(layer.rCountBucketFilters.size>0 && !layer.rCountBucketFilters.has(rcb))return false;
-  }
-  // Only enforced for Merida layers — on any other layer the chip group is hidden and the
-  // Set stays at its default {yes,no}, i.e. always both true, so this is a no-op there.
+  // Strict checkbox semantics throughout, deliberately, for every filter group: a shop only
+  // passes a dimension if its key is in that dimension's selected Set. An empty Set naturally
+  // excludes everyone (Set.has() on nothing is always false) — same as unchecking every box in
+  // any normal filter UI, and the same whether the "box" is a status, a county, or a campaign.
+  // There is no size>0-guarded "empty = inactive" special case anywhere here on purpose: that
+  // convention used to apply to some fields but not others (status/priority were the outliers),
+  // which made "deselect everything to isolate one filter" behave inconsistently depending on
+  // which group you cleared. Fields where a shop can lack a value use the *Key helpers above so
+  // blank is a real, selectable bucket rather than something that always silently passes or
+  // always silently vanishes.
+  if(exceptField!=='statusFilters' && !layer.statusFilters.has(shop.status))return false;
+  if(exceptField!=='priorityFilters' && !layer.priorityFilters.has(priorityKey(shop)))return false;
+  if(exceptField!=='ratingFilters' && !layer.ratingFilters.has(ratingTierKey(shop)))return false;
+  if(exceptField!=='regionFilters' && !layer.regionFilters.has(regionKeyOf(shop)))return false;
+  if(exceptField!=='countyFilters' && !layer.countyFilters.has(countyKeyOf(shop)))return false;
+  if(exceptField!=='salesRepFilters' && !layer.salesRepFilters.has(salesRepKeyOf(shop)))return false;
+  if(exceptField!=='campaignFilters' && !layer.campaignFilters.has(campaignKey(shop)))return false;
+  if(exceptField!=='gRatingBucketFilters' && !layer.gRatingBucketFilters.has(gRatingBucketKey(shop.google_rating)))return false;
+  if(exceptField!=='rCountBucketFilters' && !layer.rCountBucketFilters.has(rCountBucketKey(shop.google_rating_count)))return false;
+  // Only enforced for Merida layers — on any other layer the chip group is hidden and never
+  // touched, and the Set stays at its default {yes,no} (i.e. always both true), so this is a
+  // no-op there regardless.
   if(exceptField!=='meridaOemFilters' && isMeridaLayer(layer)){
     const mk=shop.sells_merida_oem?'yes':'no';
-    if(layer.meridaOemFilters.size>0 && !layer.meridaOemFilters.has(mk))return false;
+    if(!layer.meridaOemFilters.has(mk))return false;
   }
   return true;
 }
@@ -2093,11 +2096,13 @@ function renderShopsTab(){
       return`<span class="sf-chip${active?' active':''}" data-lid="${esc(layer.id)}" data-priority="${p.key}" style="--dot-color:${p.color};font-size:10px;padding:2px 7px;"><span class="sf-dot"></span>${esc(p.label)}<span class="sf-count">${cnt}</span></span>`;
     }).join('');
     const ratingGroups=[...new Set(layer.data.map(s=>s.ratingGroup).filter(Boolean))].sort();
-    const ratingChips=ratingGroups.map(rg=>{
-      const cnt=layer.data.filter(s=>s.ratingGroup===rg&&shopPassesLayerFilters(s,layer,'ratingFilters')).length;
+    const ratingTierKeys=layer.data.some(s=>!s.ratingGroup)?[...ratingGroups,'none']:ratingGroups;
+    const ratingChips=ratingTierKeys.map(rg=>{
+      const cnt=layer.data.filter(s=>ratingTierKey(s)===rg&&shopPassesLayerFilters(s,layer,'ratingFilters')).length;
       const active=layer.ratingFilters.has(rg);
-      const col=RATING_COLORS[rg]||'#798BA5';
-      return`<span class="sf-chip${active?' active':''}" data-lid="${esc(layer.id)}" data-rating="${esc(rg)}" style="--dot-color:${col};font-size:10px;padding:2px 7px;"><span class="sf-dot"></span>${esc(rg)} 級<span class="sf-count">${cnt}</span></span>`;
+      const col=rg==='none'?'#AEB4BD':(RATING_COLORS[rg]||'#798BA5');
+      const label=rg==='none'?'無等級 No tier':`${esc(rg)} 級`;
+      return`<span class="sf-chip${active?' active':''}" data-lid="${esc(layer.id)}" data-rating="${esc(rg)}" style="--dot-color:${col};font-size:10px;padding:2px 7px;"><span class="sf-dot"></span>${label}<span class="sf-count">${cnt}</span></span>`;
     }).join('');
     const gRatingChips=GRATING_BUCKETS.map(b=>{
       const cnt=layer.data.filter(s=>gRatingBucketKey(s.google_rating)===b.key&&shopPassesLayerFilters(s,layer,'gRatingBucketFilters')).length;
@@ -2110,22 +2115,28 @@ function renderShopsTab(){
       return`<span class="sf-chip${active?' active':''}" data-lid="${esc(layer.id)}" data-rcountbucket="${b.key}" style="--dot-color:#D97706;font-size:10px;padding:2px 7px;"><span class="sf-dot"></span>${esc(b.label)}<span class="sf-count">${cnt}</span></span>`;
     }).join('');
     const regions=[...new Set(layer.data.map(s=>s.region).filter(Boolean))].sort();
-    const regionChips=regions.map(rg=>{
-      const cnt=layer.data.filter(s=>s.region===rg&&shopPassesLayerFilters(s,layer,'regionFilters')).length;
+    const regionKeys=layer.data.some(s=>!s.region)?[...regions,'none']:regions;
+    const regionChips=regionKeys.map(rg=>{
+      const cnt=layer.data.filter(s=>regionKeyOf(s)===rg&&shopPassesLayerFilters(s,layer,'regionFilters')).length;
       const active=layer.regionFilters.has(rg);
-      return`<span class="sf-chip${active?' active':''}" data-lid="${esc(layer.id)}" data-region="${esc(rg)}" style="--dot-color:#3B6FD9;font-size:10px;padding:2px 7px;"><span class="sf-dot"></span>${esc(rg)}<span class="sf-count">${cnt}</span></span>`;
+      const label=rg==='none'?'未知地區 Unknown region':esc(rg);
+      return`<span class="sf-chip${active?' active':''}" data-lid="${esc(layer.id)}" data-region="${esc(rg)}" style="--dot-color:${rg==='none'?'#AEB4BD':'#3B6FD9'};font-size:10px;padding:2px 7px;"><span class="sf-dot"></span>${label}<span class="sf-count">${cnt}</span></span>`;
     }).join('');
     const counties=[...new Set(layer.data.map(s=>s.county).filter(Boolean))].sort((a,b)=>countyNSRankZH(a)-countyNSRankZH(b));
-    const countyChips=counties.map(cty=>{
-      const cnt=layer.data.filter(s=>s.county===cty&&shopPassesLayerFilters(s,layer,'countyFilters')).length;
+    const countyKeys=layer.data.some(s=>!s.county)?[...counties,'none']:counties;
+    const countyChips=countyKeys.map(cty=>{
+      const cnt=layer.data.filter(s=>countyKeyOf(s)===cty&&shopPassesLayerFilters(s,layer,'countyFilters')).length;
       const active=layer.countyFilters.has(cty);
-      return`<span class="sf-chip${active?' active':''}" data-lid="${esc(layer.id)}" data-county="${esc(cty)}" style="--dot-color:#1FA67A;font-size:10px;padding:2px 7px;"><span class="sf-dot"></span>${esc(cty)}<span class="sf-count">${cnt}</span></span>`;
+      const label=cty==='none'?'未知縣市 Unknown county':esc(cty);
+      return`<span class="sf-chip${active?' active':''}" data-lid="${esc(layer.id)}" data-county="${esc(cty)}" style="--dot-color:${cty==='none'?'#AEB4BD':'#1FA67A'};font-size:10px;padding:2px 7px;"><span class="sf-dot"></span>${label}<span class="sf-count">${cnt}</span></span>`;
     }).join('');
     const salesReps=[...new Set(layer.data.map(s=>s.sales_rep).filter(Boolean))].sort();
-    const salesRepChips=salesReps.map(sr=>{
-      const cnt=layer.data.filter(s=>s.sales_rep===sr&&shopPassesLayerFilters(s,layer,'salesRepFilters')).length;
+    const salesRepKeys=layer.data.some(s=>!s.sales_rep)?[...salesReps,'none']:salesReps;
+    const salesRepChips=salesRepKeys.map(sr=>{
+      const cnt=layer.data.filter(s=>salesRepKeyOf(s)===sr&&shopPassesLayerFilters(s,layer,'salesRepFilters')).length;
       const active=layer.salesRepFilters.has(sr);
-      return`<span class="sf-chip${active?' active':''}" data-lid="${esc(layer.id)}" data-salesrep="${esc(sr)}" style="--dot-color:#8B5CF6;font-size:10px;padding:2px 7px;"><span class="sf-dot"></span>${esc(sr)}<span class="sf-count">${cnt}</span></span>`;
+      const label=sr==='none'?'未指派 Unassigned':esc(sr);
+      return`<span class="sf-chip${active?' active':''}" data-lid="${esc(layer.id)}" data-salesrep="${esc(sr)}" style="--dot-color:${sr==='none'?'#AEB4BD':'#8B5CF6'};font-size:10px;padding:2px 7px;"><span class="sf-dot"></span>${label}<span class="sf-count">${cnt}</span></span>`;
     }).join('');
     // Merida OEM flag chip group — only meaningful/shown on the Merida dataset layer, since
     // sells_merida_oem isn't a concept that applies to any other dataset (see isMeridaLayer).
