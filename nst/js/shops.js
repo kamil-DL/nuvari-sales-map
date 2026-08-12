@@ -1,7 +1,7 @@
 import { supabase } from './supabase-client.js';
 import { fetchAllPages } from '../../shared/supabase-paginate.js';
 
-export async function loadShops({ status, search, region, county, salesRep, priority, datasetId, onlyMine, userId } = {}) {
+export async function loadShops({ status, search, region, county, salesRep, priority, datasetId, onlyMine, meridaOemOnly, userId } = {}) {
   return fetchAllPages((from, to) => {
     let q = supabase.from('shops').select('*').order('created_at', { ascending: false });
     if (status && status !== 'all') q = q.eq('status', status);
@@ -14,6 +14,9 @@ export async function loadShops({ status, search, region, county, salesRep, prio
     if (datasetId === 'unassigned') q = q.is('dataset_id', null);
     else if (datasetId && datasetId !== 'all') q = q.eq('dataset_id', datasetId);
     if (onlyMine && userId) q = q.eq('created_by', userId);
+    // Only ever applied alongside the Merida dataset filter (see isMeridaDataset in
+    // shops.html) — sells_merida_oem isn't meaningful outside Merida's dealer network.
+    if (meridaOemOnly) q = q.eq('sells_merida_oem', true);
     return q.range(from, to);
   });
 }

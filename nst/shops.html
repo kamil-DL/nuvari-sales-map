@@ -78,6 +78,11 @@
       <label style="display:flex;align-items:center;gap:6px;font-size:13px;white-space:nowrap;cursor:pointer">
         <input type="checkbox" id="only-mine-checkbox"/> 只顯示我的 Only mine
       </label>
+      <!-- Only meaningful within the Merida dataset (shown/hidden by the dataset-filter change
+           handler) — sells_merida_oem doesn't apply to shops outside Merida's dealer network. -->
+      <label id="merida-oem-filter-label" style="display:none;align-items:center;gap:6px;font-size:13px;white-space:nowrap;cursor:pointer">
+        <input type="checkbox" id="merida-oem-filter-checkbox"/> 只顯示美利達 OEM 經銷商 Only Merida OEM dealers
+      </label>
     </div>
 
     <div id="selection-bar" class="nst-filter-bar" style="display:none;flex-wrap:wrap">
@@ -180,6 +185,11 @@
       <select id="f-dataset" class="nst-select">
         <option value="">未分類 Unassigned</option>
       </select>
+      <!-- Only relevant for shops in the Merida dataset — toggled by the f-dataset change
+           handler, not shown for other datasets. -->
+      <label id="f-merida-oem-label" class="nst-field-label" style="display:none;flex-direction:row;align-items:center;gap:6px;cursor:pointer;">
+        <input type="checkbox" id="f-merida-oem"/> 美利達 OEM 經銷商 Merida OEM dealer
+      </label>
       <label class="nst-field-label">備註 Notes</label>
       <textarea id="f-notes" class="nst-textarea" placeholder="Additional notes…"></textarea>
       <div id="modal-error" class="nst-auth-error" style="margin-top:10px"></div>
@@ -297,6 +307,14 @@ function datasetName(id) {
   return d ? d.name : null;
 }
 
+// sells_merida_oem only means something for shops in Merida's own dealer-network dataset —
+// matches map.html's resolveDatasetMeta() convention of detecting "MERIDA" by name substring
+// rather than a hardcoded id, so it still works if the dataset gets recreated.
+function isMeridaDataset(id) {
+  const name = datasetName(id);
+  return !!name && name.toLowerCase().includes('merida');
+}
+
 function statusBadge(s) {
   const info = STATUS_LABELS[s] || { zh: s, en: s, color: 'badge-gray' };
   return `<span class="nst-badge ${info.color}">${info.zh} ${info.en}</span>`;
@@ -358,6 +376,7 @@ function renderShops(shops) {
           ${priorityInlineSelect(s)}
           ${statusBadge(s.status)}
           ${regionBadge(s.region)}
+          ${s.sells_merida_oem ? `<span class="nst-badge badge-teal">美利達 OEM</span>` : ''}
           ${dsName ? `<span class="nst-badge badge-gray">🗂 ${esc(dsName)}</span>` : ''}
         </div>
         <a class="shop-card-open" href="shop-detail.html?id=${s.id}" title="開啟 Open">↗</a>
@@ -501,7 +520,17 @@ document.getElementById('export-csv-btn').addEventListener('click', () => {
   downloadShopsCSV(rows, label);
 });
 
+// The Merida-OEM filter only makes sense while looking at the Merida dataset — hide/reset it
+// otherwise so it can't silently narrow down some other dataset's results.
+function updateMeridaOemFilterVisibility() {
+  const datasetId = document.getElementById('dataset-filter').value;
+  const show = isMeridaDataset(datasetId);
+  document.getElementById('merida-oem-filter-label').style.display = show ? 'flex' : 'none';
+  if (!show) document.getElementById('merida-oem-filter-checkbox').checked = false;
+}
+
 async function refresh() {
+  updateMeridaOemFilterVisibility();
   const status = document.getElementById('status-filter').value;
   const search = document.getElementById('search-input').value.trim();
   const region = document.getElementById('region-filter').value;
@@ -510,8 +539,9 @@ async function refresh() {
   const priority = document.getElementById('priority-filter').value;
   const datasetId = document.getElementById('dataset-filter').value;
   const onlyMine = document.getElementById('only-mine-checkbox').checked;
+  const meridaOemOnly = isMeridaDataset(datasetId) && document.getElementById('merida-oem-filter-checkbox').checked;
   try {
-    currentShops = await loadShops({ status, search, region, county, salesRep, priority, datasetId, onlyMine, userId: user.id });
+    currentShops = await loadShops({ status, search, region, county, salesRep, priority, datasetId, onlyMine, meridaOemOnly, userId: user.id });
     renderLimit = RENDER_PAGE_SIZE;
     document.getElementById('shops-count').textContent = `共 ${currentShops.length} 家店 · ${currentShops.length} shop${currentShops.length === 1 ? '' : 's'}`;
     try {
@@ -604,6 +634,7 @@ document.getElementById('county-filter').addEventListener('change', refresh);
 document.getElementById('rep-filter').addEventListener('change', refresh);
 document.getElementById('priority-filter').addEventListener('change', refresh);
 document.getElementById('dataset-filter').addEventListener('change', refresh);
+document.getElementById('merida-oem-filter-checkbox').addEventListener('change', refresh);
 document.getElementById('only-mine-checkbox').addEventListener('change', refresh);
 
 // Modal
@@ -634,6 +665,8 @@ function openModal(shop = null) {
   }
   fRepSel.value = currentRep;
   document.getElementById('f-dataset').value = shop ? (shop.dataset_id || '') : '';
+  document.getElementById('f-merida-oem').checked = shop ? !!shop.sells_merida_oem : false;
+  updateMeridaOemFieldVisibility();
   document.getElementById('f-notes').value = shop ? (shop.notes || '') : '';
   document.getElementById('modal-error').textContent = '';
   editingShopCreatedBy = shop ? shop.created_by : null;
@@ -647,6 +680,13 @@ function openModal(shop = null) {
 function closeModal() {
   document.getElementById('shop-modal').style.display = 'none';
 }
+
+function updateMeridaOemFieldVisibility() {
+  const show = isMeridaDataset(document.getElementById('f-dataset').value);
+  document.getElementById('f-merida-oem-label').style.display = show ? 'flex' : 'none';
+  if (!show) document.getElementById('f-merida-oem').checked = false;
+}
+document.getElementById('f-dataset').addEventListener('change', updateMeridaOemFieldVisibility);
 
 document.getElementById('add-shop-btn').addEventListener('click', () => openModal());
 document.getElementById('modal-close-btn').addEventListener('click', closeModal);
@@ -670,6 +710,7 @@ document.getElementById('modal-save-btn').addEventListener('click', async () => 
     contact_phone: document.getElementById('f-contact-phone').value.trim() || null,
     sales_rep: document.getElementById('f-sales-rep').value || null,
     dataset_id: document.getElementById('f-dataset').value || null,
+    sells_merida_oem: isMeridaDataset(document.getElementById('f-dataset').value) && document.getElementById('f-merida-oem').checked,
     notes: document.getElementById('f-notes').value.trim() || null,
   };
   const btn = document.getElementById('modal-save-btn');

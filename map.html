@@ -674,7 +674,20 @@ function ensureLayerFilterDefaults(layer){
   // convention below) — the whole point is being able to narrow down to just P1, so a shop
   // with no priority set needs its own selectable "none" bucket rather than always passing.
   if(!layer.priorityFilters)layer.priorityFilters=new Set(PRIORITY_ORDER.map(p=>p.key));
+  // Only meaningful/shown for Merida-named research layers (see isMeridaLayer) — the
+  // 'yes'/'no' bucket convention mirrors ratingFilters etc. so the same chip-group code path
+  // can render it, but it's initialized for every layer for simplicity.
+  if(!layer.meridaOemFilters)layer.meridaOemFilters=new Set(['yes','no']);
   if(!layer.kind)layer.kind='sales';
+}
+// A dataset layer is "Merida" if its resolved dataset metadata is the MERIDA entry, or (for
+// CSV-uploaded layers without dataset metadata) its name loosely matches — same substring
+// convention as resolveDatasetMeta's own fallback matching.
+function isMeridaLayer(layer){
+  if(!layer)return false;
+  const meta=resolveDatasetMeta(layer.name);
+  if(meta)return meta===DATASET_META['MERIDA'];
+  return(layer.name||'').toLowerCase().includes('merida');
 }
 /* "Select all / Deselect all" per filter group — recomputes the same key list each chip group
    is built from (rather than passing it through HTML) so the button always matches whatever's
@@ -689,6 +702,7 @@ function allKeysForField(layer,field){
     case'regionFilters':return[...new Set(layer.data.map(s=>s.region).filter(Boolean))];
     case'countyFilters':return[...new Set(layer.data.map(s=>s.county).filter(Boolean))];
     case'salesRepFilters':return[...new Set(layer.data.map(s=>s.sales_rep).filter(Boolean))];
+    case'meridaOemFilters':return['yes','no'];
     default:return[];
   }
 }
@@ -724,6 +738,12 @@ function shopPassesLayerFilters(shop,layer,exceptField){
   if(exceptField!=='rCountBucketFilters'){
     const rcb=rCountBucketKey(shop.google_rating_count);
     if(layer.rCountBucketFilters.size>0 && !layer.rCountBucketFilters.has(rcb))return false;
+  }
+  // Only enforced for Merida layers — on any other layer the chip group is hidden and the
+  // Set stays at its default {yes,no}, i.e. always both true, so this is a no-op there.
+  if(exceptField!=='meridaOemFilters' && isMeridaLayer(layer)){
+    const mk=shop.sells_merida_oem?'yes':'no';
+    if(layer.meridaOemFilters.size>0 && !layer.meridaOemFilters.has(mk))return false;
   }
   return true;
 }
@@ -1393,10 +1413,11 @@ function buildBikeshopPopup(shop){
       <a href="${fullEditHref}" target="_blank" rel="noopener" class="btn" style="font-size:10px;padding:3px 8px;margin-top:6px;width:100%;display:block;text-align:center;box-sizing:border-box;">🔗 開啟完整編輯 Open full edit</a>
     </div>`:'';
   const priorityBadge=shop.priority&&PRIORITY_STYLE[shop.priority]?`<span class="bs-badge" style="background:${esc(PRIORITY_STYLE[shop.priority].bg)};color:${esc(PRIORITY_STYLE[shop.priority].color)};margin-left:5px;">${esc(PRIORITY_STYLE[shop.priority].label)}</span>`:'';
+  const meridaOemBadge=shop.sells_merida_oem?`<span class="bs-badge" style="background:#1FA67A1A;color:#1FA67A;margin-left:5px;">美利達OEM Merida OEM</span>`:'';
   return`<div class="bs-popup">
     <div class="bs-name">${esc(shop.name)}</div>
     ${layer?`<div style="font-size:10px;margin-bottom:4px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${esc(layer.color)};margin-right:4px;vertical-align:middle;"></span>${esc(layer.name)}</div>`:''}
-    <span class="bs-badge" style="background:${esc(st.bg)};color:${esc(st.color)}">${esc(st.label)}</span>${priorityBadge}${ratingBadge}${googleRatingBadge}
+    <span class="bs-badge" style="background:${esc(st.bg)};color:${esc(st.color)}">${esc(st.label)}</span>${priorityBadge}${meridaOemBadge}${ratingBadge}${googleRatingBadge}
     ${shop.address?`<div class="bs-addr">${esc(shop.address)}</div>`:''}
     ${categoryLine}
     ${phoneLine}
@@ -1426,10 +1447,11 @@ function buildBikeshopPreviewPopup(shop){
   const categoryLine=shop.category?`<div class="bs-addr" style="color:var(--soft,#798BA5);">${esc(shop.category)}${shop.business_status&&shop.business_status!=='OPERATIONAL'?` · ${esc(shop.business_status)}`:''}</div>`:'';
   const phoneLine=shop.contact_phone?`<div class="bs-addr">Tel: ${esc(shop.contact_phone)}</div>`:'';
   const priorityBadge=shop.priority&&PRIORITY_STYLE[shop.priority]?`<span class="bs-badge" style="background:${esc(PRIORITY_STYLE[shop.priority].bg)};color:${esc(PRIORITY_STYLE[shop.priority].color)};margin-left:5px;">${esc(PRIORITY_STYLE[shop.priority].label)}</span>`:'';
+  const meridaOemBadge=shop.sells_merida_oem?`<span class="bs-badge" style="background:#1FA67A1A;color:#1FA67A;margin-left:5px;">美利達OEM Merida OEM</span>`:'';
   return`<div class="bs-popup">
     <div class="bs-name">${esc(shop.name)}</div>
     ${layer?`<div style="font-size:10px;margin-bottom:4px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${esc(layer.color)};margin-right:4px;vertical-align:middle;"></span>${esc(layer.name)}</div>`:''}
-    <span class="bs-badge" style="background:${esc(st.bg)};color:${esc(st.color)}">${esc(st.label)}</span>${priorityBadge}${ratingBadge}${googleRatingBadge}
+    <span class="bs-badge" style="background:${esc(st.bg)};color:${esc(st.color)}">${esc(st.label)}</span>${priorityBadge}${meridaOemBadge}${ratingBadge}${googleRatingBadge}
     ${shop.address?`<div class="bs-addr">${esc(shop.address)}</div>`:''}
     ${categoryLine}
     ${phoneLine}
@@ -1583,7 +1605,7 @@ async function refreshShopDbDatasets(){
   if(document.getElementById('tab-shops'))renderShopsTab();
 }
 
-const SHOP_FETCH_COLUMNS='id,name,address,lat,lng,status,priority,contact_name,contact_phone,notes,region,county,district,coord_status,category,sales_rep,google_name,google_address,google_place_id,google_rating,google_rating_count,business_status,dataset_id';
+const SHOP_FETCH_COLUMNS='id,name,address,lat,lng,status,priority,contact_name,contact_phone,notes,region,county,district,coord_status,category,sales_rep,google_name,google_address,google_place_id,google_rating,google_rating_count,business_status,dataset_id,sells_merida_oem';
 /* PostgREST caps rows per request at a server-configured max (1000 by default on Supabase) —
    a single query silently truncates instead of erroring, which is how "Taiwan Bike Shops"
    (2,550 rows) previously showed as exactly 1000/1000. Page through with .range() until a
@@ -1631,6 +1653,7 @@ function mapShopDbRows(mappable,layerId,layerColor){
     google_rating:s.google_rating!=null?parseFloat(s.google_rating):null,
     google_rating_count:s.google_rating_count!=null?parseInt(s.google_rating_count,10):null,
     business_status:s.business_status||null,
+    sells_merida_oem:!!s.sells_merida_oem,
     _layerId:layerId,
     _layerColor:layerColor,
     _dbId:s.id
@@ -1967,6 +1990,15 @@ function renderShopsTab(){
       const active=layer.salesRepFilters.has(sr);
       return`<span class="sf-chip${active?' active':''}" data-lid="${esc(layer.id)}" data-salesrep="${esc(sr)}" style="--dot-color:#8B5CF6;font-size:10px;padding:2px 7px;"><span class="sf-dot"></span>${esc(sr)}<span class="sf-count">${cnt}</span></span>`;
     }).join('');
+    // Merida OEM flag chip group — only meaningful/shown on the Merida dataset layer, since
+    // sells_merida_oem isn't a concept that applies to any other dataset (see isMeridaLayer).
+    const isMerida=isMeridaLayer(layer);
+    const MERIDA_OEM_LABELS={yes:'美利達OEM經銷商 Merida OEM dealer',no:'非美利達OEM Not OEM dealer'};
+    const meridaOemChips=isMerida?['yes','no'].map(k=>{
+      const cnt=layer.data.filter(s=>(s.sells_merida_oem?'yes':'no')===k&&shopPassesLayerFilters(s,layer,'meridaOemFilters')).length;
+      const active=layer.meridaOemFilters.has(k);
+      return`<span class="sf-chip${active?' active':''}" data-lid="${esc(layer.id)}" data-meridaoem="${k}" style="--dot-color:#1FA67A;font-size:10px;padding:2px 7px;"><span class="sf-dot"></span>${esc(MERIDA_OEM_LABELS[k])}<span class="sf-count">${cnt}</span></span>`;
+    }).join(''):'';
     // All applicable filter groups for this layer, gated by kind — collapsed by default behind
     // the "⚙ Filters" button so a growing number of datasets/filter dimensions doesn't clutter
     // the list. layer._filtersOpen is in-memory UI state, not persisted.
@@ -1979,7 +2011,8 @@ function renderShopsTab(){
       showRatingFilters?`${groupHeader('Google 評論數 Review count',layer.id,'rCountBucketFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${rCountChips}</div>`:'',
       regions.length?`${groupHeader('地區 Region',layer.id,'regionFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${regionChips}</div>`:'',
       counties.length?`${groupHeader('縣市 County',layer.id,'countyFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${countyChips}</div>`:'',
-      (showStatusRep&&salesReps.length)?`${groupHeader('業務員 Sales rep',layer.id,'salesRepFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;">${salesRepChips}</div>`:''
+      (showStatusRep&&salesReps.length)?`${groupHeader('業務員 Sales rep',layer.id,'salesRepFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${salesRepChips}</div>`:'',
+      isMerida?`${groupHeader('美利達 OEM Merida OEM',layer.id,'meridaOemFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;">${meridaOemChips}</div>`:''
     ].filter(Boolean).join('');
     const filtersOpen=!!layer._filtersOpen;
     layersHtml+=`<div class="layer-card" style="border:1.5px solid ${isActive?layer.color:'var(--border)'};border-radius:9px;padding:9px 11px;margin-bottom:8px;">
@@ -2130,6 +2163,9 @@ function renderShopsTab(){
       } else if(chip.dataset.salesrep!==undefined){
         const sr=chip.dataset.salesrep;
         if(layer.salesRepFilters.has(sr))layer.salesRepFilters.delete(sr);else layer.salesRepFilters.add(sr);
+      } else if(chip.dataset.meridaoem!==undefined){
+        const k=chip.dataset.meridaoem;
+        if(layer.meridaOemFilters.has(k))layer.meridaOemFilters.delete(k);else layer.meridaOemFilters.add(k);
       }
       persistBikeshops();rebuildBikeshopMarkers();renderShopsTab();
     });
