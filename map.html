@@ -2036,7 +2036,13 @@ function renderShopsTab(){
   // hidden by default (shopDbPickerOpen, in-memory UI state like _filtersOpen elsewhere) and only
   // appears once you click the load button; picking an option loads immediately and collapses it
   // back down, so there's no separate "confirm" step to add.
+  // Starts on a disabled placeholder, not "全部店家 All shops" — a real <select> only fires
+  // 'change' when the value actually differs, so if "All shops" were pre-selected by default,
+  // clicking it (the option a lot of people want) would silently do nothing the first time,
+  // only working after picking something else first. The placeholder makes every real choice,
+  // including "All shops", a genuine change event.
   const dbPicker=shopDbPickerOpen?`<select id="shopDbDatasetSelect" class="btn" style="width:100%;margin-bottom:8px;">
+      <option value="__placeholder__" selected disabled>請選擇資料集... Select a dataset…</option>
       <option value="all">全部店家 All shops</option>
       <option value="unassigned">未分類 Unassigned</option>
       ${datasetOptionsHtml}
@@ -2244,6 +2250,7 @@ function renderShopsTab(){
   const shopDbSel=document.getElementById('shopDbDatasetSelect');
   if(shopDbSel){
     shopDbSel.addEventListener('change',()=>{
+      if(shopDbSel.value==='__placeholder__')return;
       shopDbPickerOpen=false;
       loadFromShopDB(shopDbSel.value);
     });
@@ -2684,25 +2691,40 @@ function loadSession(){
       if(b.layers&&b.layers.length>0){
         // Array.isArray guards: layers persisted before this fix have regionFilters/
         // salesRepFilters as stale "{}" objects (Set serialized wrong), which would throw if
-        // passed straight into `new Set(...)` (not iterable) — fall back to empty instead.
-        // meridaOemFilters falling back to [] here (rather than ['yes','no']) is fine even
-        // though that changes its "show everything" meaning — ensureLayerFilterDefaults'
-        // `!layer.meridaOemFilters` check no longer applies once this key exists at all, but an
-        // empty Set already means "no filter active" by the same convention every other Set here
-        // uses, so old sessions just silently regain the "show everything" behavior instead of
-        // erroring.
-        csvLayers=b.layers.map(l=>({...l,
-          statusFilters:new Set(Array.isArray(l.statusFilters)?l.statusFilters:[]),
-          priorityFilters:new Set(Array.isArray(l.priorityFilters)?l.priorityFilters:PRIORITY_ORDER.map(p=>p.key)),
-          ratingFilters:new Set(Array.isArray(l.ratingFilters)?l.ratingFilters:[]),
-          regionFilters:new Set(Array.isArray(l.regionFilters)?l.regionFilters:[]),
-          countyFilters:new Set(Array.isArray(l.countyFilters)?l.countyFilters:[]),
-          salesRepFilters:new Set(Array.isArray(l.salesRepFilters)?l.salesRepFilters:[]),
-          gRatingBucketFilters:new Set(Array.isArray(l.gRatingBucketFilters)?l.gRatingBucketFilters:[]),
-          rCountBucketFilters:new Set(Array.isArray(l.rCountBucketFilters)?l.rCountBucketFilters:[]),
-          meridaOemFilters:new Set(Array.isArray(l.meridaOemFilters)?l.meridaOemFilters:[]),
-          campaignFilters:new Set(Array.isArray(l.campaignFilters)?l.campaignFilters:[])
-        }));
+        // passed straight into `new Set(...)` (not iterable).
+        // ratingFilters/regionFilters/countyFilters/salesRepFilters/gRatingBucketFilters/
+        // rCountBucketFilters/meridaOemFilters/campaignFilters all used to mean "empty = show
+        // everything" — a session saved before today's rewrite (or one where any of those was
+        // ever cleared) can have a genuinely empty persisted array for one of them. Under the
+        // new strict-checkbox semantics that same empty Set now means "show nothing," so
+        // restoring it literally would silently blank the whole map for anyone with old saved
+        // state. restoreOrDefault leaves the field unset when the persisted array is missing/
+        // empty, so ensureLayerFilterDefaults (called via rebuildBikeshopDataFromLayers below)
+        // fills it in fresh as "everything selected" — exactly what a newly-loaded layer gets.
+        // statusFilters/priorityFilters are excluded from this treatment: their meaning never
+        // changed (empty has always meant "show nothing" for both), so an old empty array there
+        // still means what it always meant.
+        const restoreOrDefault=arr=>Array.isArray(arr)&&arr.length>0?new Set(arr):undefined;
+        csvLayers=b.layers.map(l=>{
+          const layer={...l,
+            statusFilters:new Set(Array.isArray(l.statusFilters)?l.statusFilters:[]),
+            priorityFilters:new Set(Array.isArray(l.priorityFilters)?l.priorityFilters:PRIORITY_ORDER.map(p=>p.key)),
+            ratingFilters:restoreOrDefault(l.ratingFilters),
+            regionFilters:restoreOrDefault(l.regionFilters),
+            countyFilters:restoreOrDefault(l.countyFilters),
+            salesRepFilters:restoreOrDefault(l.salesRepFilters),
+            gRatingBucketFilters:restoreOrDefault(l.gRatingBucketFilters),
+            rCountBucketFilters:restoreOrDefault(l.rCountBucketFilters),
+            meridaOemFilters:restoreOrDefault(l.meridaOemFilters),
+            campaignFilters:restoreOrDefault(l.campaignFilters)
+          };
+          // Strip undefined keys rather than leaving them — ensureLayerFilterDefaults checks
+          // `!layer.field`, and an explicit `field: undefined` property is just as falsy as a
+          // missing one, but being explicit here keeps the intent obvious.
+          Object.keys(layer).forEach(k=>{if(layer[k]===undefined)delete layer[k];});
+          ensureLayerFilterDefaults(layer);
+          return layer;
+        });
         activeLayerIds=new Set(b.activeLayerIds||csvLayers.map(l=>l.id));
         rebuildBikeshopDataFromLayers();
         const badge=document.getElementById('shopTabBadge');if(badge)badge.textContent=`(${bikeshopData.length})`;
