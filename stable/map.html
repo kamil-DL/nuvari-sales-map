@@ -44,6 +44,10 @@ header{flex-shrink:0;background:var(--panel);border-bottom:1px solid var(--borde
 .btn-teal{border-color:var(--accent);color:var(--accent);}
 .btn-teal:hover{background:var(--accent);color:#fff;border-color:var(--accent);}
 .btn-on{background:var(--ink);color:#fff;border-color:var(--ink);}
+.icon-btn{width:30px;flex-shrink:0;padding:5px 0;font-size:14px;font-weight:700;text-align:center;}
+.search-input-wrap{position:relative;}
+.search-input-wrap .search-input-icon{position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:11px;opacity:.55;pointer-events:none;}
+.search-input-wrap input{padding-left:26px !important;}
 .radius-wrap{display:flex;align-items:center;gap:4px;}
 .radius-wrap input{width:48px;padding:4px 6px;border:1px solid var(--border);border-radius:7px;font-size:12px;font-weight:700;font-family:inherit;text-align:center;}
 .radius-wrap input:focus{outline:none;border-color:var(--accent);}
@@ -577,6 +581,7 @@ const PRIORITY_ORDER=[
   {key:'none',label:'無 None',color:'#AEB4BD'}
 ];
 function priorityKey(shop){ return shop.priority||'none'; }
+function campaignKey(shop){ return shop.campaign_id||'none'; }
 
 /* ══ state ══ */
 let shops=[];          // dealer coverage pins (draggable)
@@ -638,14 +643,17 @@ function ensureLayerFilterDefaults(layer){
   if(!layer.regionFilters)layer.regionFilters=new Set([...new Set(layer.data.map(s=>s.region).filter(Boolean))]);
   if(!layer.countyFilters)layer.countyFilters=new Set([...new Set(layer.data.map(s=>s.county).filter(Boolean))]);
   if(!layer.salesRepFilters)layer.salesRepFilters=new Set([...new Set(layer.data.map(s=>s.sales_rep).filter(Boolean))]);
-  // Campaigns are global (not dataset-scoped like Merida OEM) — a shop with no campaign_id
-  // always passes, same "empty = show everything" convention as region/county/sales-rep above.
-  if(!layer.campaignFilters)layer.campaignFilters=new Set([...new Set(layer.data.map(s=>s.campaign_id).filter(Boolean))]);
+  // Campaigns are global (not dataset-scoped like Merida OEM). Unlike region/county/sales-rep
+  // above, an unassigned shop does NOT always pass through here — "show me only this campaign's
+  // shops" needs to actually exclude everyone not in it, including shops with no campaign at
+  // all. So this works like priorityFilters: a closed set with its own explicit 'none' bucket
+  // (via campaignKey), not a passthrough-when-blank field.
+  if(!layer.campaignFilters)layer.campaignFilters=new Set([...new Set(layer.data.map(s=>campaignKey(s)))]);
   if(!layer.gRatingBucketFilters)layer.gRatingBucketFilters=new Set(GRATING_BUCKETS.map(b=>b.key));
   if(!layer.rCountBucketFilters)layer.rCountBucketFilters=new Set(RCOUNT_BUCKETS.map(b=>b.key));
-  // Priority is a strict whitelist like statusFilters (not the "empty = show everything"
-  // convention below) — the whole point is being able to narrow down to just P1, so a shop
-  // with no priority set needs its own selectable "none" bucket rather than always passing.
+  // Defaults to every key selected (not empty) — narrowing to just P1 works by deselecting the
+  // others, same as every other filter group. A shop with no priority set gets its own
+  // selectable "none" bucket (PRIORITY_ORDER includes it) rather than always passing through.
   if(!layer.priorityFilters)layer.priorityFilters=new Set(PRIORITY_ORDER.map(p=>p.key));
   // Only meaningful/shown for Merida-named research layers (see isMeridaLayer) — the
   // 'yes'/'no' bucket convention mirrors ratingFilters etc. so the same chip-group code path
@@ -676,7 +684,7 @@ function allKeysForField(layer,field){
     case'countyFilters':return[...new Set(layer.data.map(s=>s.county).filter(Boolean))];
     case'salesRepFilters':return[...new Set(layer.data.map(s=>s.sales_rep).filter(Boolean))];
     case'meridaOemFilters':return['yes','no'];
-    case'campaignFilters':return[...new Set(layer.data.map(s=>s.campaign_id).filter(Boolean))];
+    case'campaignFilters':return[...new Set(layer.data.map(s=>campaignKey(s)))];
     default:return[];
   }
 }
@@ -697,15 +705,22 @@ function groupHeader(label,layerId,field,extraBtnHtml){
 // disagree wildly (e.g. a county chip showing 54 while a status filter elsewhere had already
 // narrowed the true visible set down to 18), which read as the filters "conflicting".
 function shopPassesLayerFilters(shop,layer,exceptField){
-  if(exceptField!=='statusFilters' && !layer.statusFilters.has(shop.status))return false;
-  if(exceptField!=='priorityFilters' && !layer.priorityFilters.has(priorityKey(shop)))return false;
+  // statusFilters/priorityFilters used to be a special-cased strict whitelist (empty Set = show
+  // NOTHING, unlike every other filter here) on the theory that both offer a closed, exhaustive
+  // set of values so "deselect everything" is meaningful. In practice that's a footgun: clicking
+  // "清除 None" on either group — or on both while trying to isolate some other filter (e.g. the
+  // campaign chip) — silently blanks the whole map with no obvious cause. Unified to the same
+  // "empty = filter inactive" convention as everything else below; selecting a specific subset
+  // (e.g. just P1) still filters exactly as before.
+  if(exceptField!=='statusFilters' && layer.statusFilters.size>0 && !layer.statusFilters.has(shop.status))return false;
+  if(exceptField!=='priorityFilters' && layer.priorityFilters.size>0 && !layer.priorityFilters.has(priorityKey(shop)))return false;
   // tier/region/sales-rep filters: a shop with no value for that field always passes through
   // (not excluded just because it lacks that particular piece of data)
   if(exceptField!=='ratingFilters' && shop.ratingGroup && layer.ratingFilters.size>0 && !layer.ratingFilters.has(shop.ratingGroup))return false;
   if(exceptField!=='regionFilters' && shop.region && layer.regionFilters.size>0 && !layer.regionFilters.has(shop.region))return false;
   if(exceptField!=='countyFilters' && shop.county && layer.countyFilters.size>0 && !layer.countyFilters.has(shop.county))return false;
   if(exceptField!=='salesRepFilters' && shop.sales_rep && layer.salesRepFilters.size>0 && !layer.salesRepFilters.has(shop.sales_rep))return false;
-  if(exceptField!=='campaignFilters' && shop.campaign_id && layer.campaignFilters.size>0 && !layer.campaignFilters.has(shop.campaign_id))return false;
+  if(exceptField!=='campaignFilters' && layer.campaignFilters.size>0 && !layer.campaignFilters.has(campaignKey(shop)))return false;
   if(exceptField!=='gRatingBucketFilters'){
     const grb=gRatingBucketKey(shop.google_rating);
     if(layer.gRatingBucketFilters.size>0 && !layer.gRatingBucketFilters.has(grb))return false;
@@ -1577,6 +1592,10 @@ function handleCSVUpload(file){
 
 /* ══ Shop DB loader ══ */
 let shopDbDatasets=null; // null = not yet loaded; [] = loaded, empty. [{id,name}] from public.shop_datasets
+// Whether the "Load from Shop DB" dataset picker is currently revealed — in-memory UI state
+// like _filtersOpen elsewhere, not persisted. Kept closed by default so it doesn't sit on
+// screen permanently; opened by clicking loadDbBtn, closed again once a dataset is picked.
+let shopDbPickerOpen=false;
 async function refreshShopDbDatasets(){
   if(!currentUser)return;
   try{
@@ -1973,25 +1992,37 @@ function renderShopsTab(){
   if(shopDbDatasets===null)refreshShopDbDatasets();
   if(shopDbCampaigns===null)refreshShopDbCampaigns();
   const datasetOptionsHtml=(shopDbDatasets||[]).map(d=>`<option value="${esc(d.id)}">${esc(d.name)}</option>`).join('');
-  const dbSelect=`<select id="shopDbDatasetSelect" class="btn" style="width:100%;margin-bottom:6px;">
+  // The dataset picker used to sit on screen permanently even though "Load from Shop DB" is the
+  // only thing that ever reads it — that's the "list there all the time" clutter. Now it's
+  // hidden by default (shopDbPickerOpen, in-memory UI state like _filtersOpen elsewhere) and only
+  // appears once you click the load button; picking an option loads immediately and collapses it
+  // back down, so there's no separate "confirm" step to add.
+  const dbPicker=shopDbPickerOpen?`<select id="shopDbDatasetSelect" class="btn" style="width:100%;margin-bottom:8px;">
       <option value="all">全部店家 All shops</option>
       <option value="unassigned">未分類 Unassigned</option>
       ${datasetOptionsHtml}
-    </select>`;
-  const dbBtn=`${dbSelect}<button class="btn" id="loadDbBtn" style="width:100%;margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:6px;background:#EEF6FD;border-color:#137ECE;color:#002850;font-weight:700;">📊 從 Shop DB 載入 Load from Shop DB</button>`;
+    </select>`:'';
+  // "Add location dataset" (CSV upload) is a rarely-used action next to "Load from Shop DB" (used
+  // constantly) — demoted to a small icon-only button rather than matching it in size/prominence.
+  const addLayerIconBtn=`<button class="btn icon-btn" id="addLayerBtn" title="新增位置資料集 Add location dataset (CSV)">＋</button>`;
+  const loadDbBtn=`<button class="btn" id="loadDbBtn" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;background:#EEF6FD;border-color:#137ECE;color:#002850;font-weight:700;">📊 從 Shop DB 載入 Load from Shop DB</button>`;
+  const dbToolbar=`<div style="display:flex;gap:6px;margin-bottom:${shopDbPickerOpen?'6px':'8px'};">${addLayerIconBtn}${loadDbBtn}</div>${dbPicker}`;
   let uploadHtml=csvLayers.length===0
     ?`<div class="upload-zone" id="uploadZone">
         <div class="uz-icon">📋</div>
         <div class="uz-title">上傳資料集 Upload dataset</div>
         <div class="uz-sub">CSV 格式，需含 lat/GISY, lng/GISX 欄位（與 Shop DB 共用標準）<br>columns: name, status, priority, address, category, contact_name, contact_phone, notes, rating, lat, lng<br>status: 尚未開發 / 電訪過 / 電訪過-拒絕 / 拜訪過 / 拜訪過-有意願 / 拜訪過-評估中 / 拜訪過-拒絕 / 已合作 / 已合作-流失<br>priority: P1 / P2 / P3（optional）</div>
-      </div>${dbBtn}`
-    :`<button class="btn btn-teal" id="addLayerBtn" style="width:100%;margin-bottom:8px;">＋ 新增位置資料集 Add location dataset</button>${dbBtn}`;
+      </div>${dbToolbar}`
+    :dbToolbar;
 
   // Search box — finds a shop by name across whatever's currently shown on the map (active
   // layers, respecting their current filters) and jumps to it on click. Restricted to shops
   // that are actually rendered right now, since "jump to it" needs a real marker to open.
   const searchHtml=csvLayers.length>0?`<div class="shop-search-wrap" style="margin-bottom:10px;">
-      <input type="text" id="shopSearchInput" class="btn" style="width:100%;text-align:left;font-weight:500;box-sizing:border-box;" placeholder="🔍 搜尋店名 Search shop name…" value="${esc(shopSearchQuery)}">
+      <div class="search-input-wrap">
+        <span class="search-input-icon">🔍</span>
+        <input type="text" id="shopSearchInput" class="btn" style="width:100%;text-align:left;font-weight:500;box-sizing:border-box;" placeholder="搜尋店名 Search shop name…" value="${esc(shopSearchQuery)}">
+      </div>
       <div id="shopSearchResults">${buildShopSearchResultsHtml()}</div>
     </div>`:'';
 
@@ -2070,13 +2101,18 @@ function renderShopsTab(){
       return`<span class="sf-chip${active?' active':''}" data-lid="${esc(layer.id)}" data-meridaoem="${k}" style="--dot-color:#1FA67A;font-size:10px;padding:2px 7px;"><span class="sf-dot"></span>${esc(MERIDA_OEM_LABELS[k])}<span class="sf-count">${cnt}</span></span>`;
     }).join(''):'';
     // Campaign chip group — global (not dataset-scoped), only shown when this layer actually
-    // has shops tagged with a campaign. Same chip-per-value pattern as sales rep above.
+    // has shops tagged with a campaign (campaignIds.length gates the whole group below). Includes
+    // an explicit "no campaign" chip alongside the real campaigns — a closed set like priority's
+    // 'none' bucket, not a passthrough-when-blank field, so selecting just one real campaign
+    // actually isolates it instead of showing unassigned shops too.
     const campaignIds=[...new Set(layer.data.map(s=>s.campaign_id).filter(Boolean))];
-    const campaignChips=campaignIds.map(cid=>{
-      const cnt=layer.data.filter(s=>s.campaign_id===cid&&shopPassesLayerFilters(s,layer,'campaignFilters')).length;
-      const active=layer.campaignFilters.has(cid);
-      const label=campaignNameById(cid)||'Campaign';
-      return`<span class="sf-chip${active?' active':''}" data-lid="${esc(layer.id)}" data-campaign="${esc(cid)}" style="--dot-color:#E65100;font-size:10px;padding:2px 7px;"><span class="sf-dot"></span>${esc(label)}<span class="sf-count">${cnt}</span></span>`;
+    const campaignChipKeys=campaignIds.length?[...campaignIds,'none']:[];
+    const campaignChips=campaignChipKeys.map(key=>{
+      const cnt=layer.data.filter(s=>campaignKey(s)===key&&shopPassesLayerFilters(s,layer,'campaignFilters')).length;
+      const active=layer.campaignFilters.has(key);
+      const label=key==='none'?'未指派計畫 No campaign':(campaignNameById(key)||'Campaign');
+      const dotColor=key==='none'?'#AEB4BD':'#E65100';
+      return`<span class="sf-chip${active?' active':''}" data-lid="${esc(layer.id)}" data-campaign="${esc(key)}" style="--dot-color:${dotColor};font-size:10px;padding:2px 7px;"><span class="sf-dot"></span>${esc(label)}<span class="sf-count">${cnt}</span></span>`;
     }).join('');
     // All applicable filter groups for this layer, gated by kind — collapsed by default behind
     // the "⚙ Filters" button so a growing number of datasets/filter dimensions doesn't clutter
@@ -2142,13 +2178,29 @@ function renderShopsTab(){
   if(csvLayers.length===0){
     document.getElementById('uploadZone').addEventListener('click',()=>document.getElementById('csvInput').click());
     setupDropzone(document.getElementById('uploadZone'));
-  } else {
-    document.getElementById('addLayerBtn').addEventListener('click',()=>document.getElementById('csvInput').click());
   }
+  // addLayerBtn (the small "＋" icon button) now renders in both the empty and populated states
+  // as part of dbToolbar, unlike the old full-width "Add location dataset" button that only
+  // existed once layers were loaded — wire it unconditionally.
+  document.getElementById('addLayerBtn').addEventListener('click',()=>document.getElementById('csvInput').click());
+  // "Load from Shop DB" no longer loads directly — it just reveals the dataset picker (see
+  // shopDbPickerOpen/dbPicker above), so the dropdown isn't sitting on screen all the time.
+  // Picking an option (below) is what actually triggers the load.
   document.getElementById('loadDbBtn').addEventListener('click', ()=>{
-    const sel=document.getElementById('shopDbDatasetSelect');
-    loadFromShopDB(sel?sel.value:'all');
+    shopDbPickerOpen=!shopDbPickerOpen;
+    renderShopsTab();
+    if(shopDbPickerOpen){
+      const sel=document.getElementById('shopDbDatasetSelect');
+      if(sel)sel.focus();
+    }
   });
+  const shopDbSel=document.getElementById('shopDbDatasetSelect');
+  if(shopDbSel){
+    shopDbSel.addEventListener('change',()=>{
+      shopDbPickerOpen=false;
+      loadFromShopDB(shopDbSel.value);
+    });
+  }
   el.querySelectorAll('.layer-toggle-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
       const lid=btn.dataset.lid;
