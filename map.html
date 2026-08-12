@@ -44,6 +44,10 @@ header{flex-shrink:0;background:var(--panel);border-bottom:1px solid var(--borde
 .btn-teal{border-color:var(--accent);color:var(--accent);}
 .btn-teal:hover{background:var(--accent);color:#fff;border-color:var(--accent);}
 .btn-on{background:var(--ink);color:#fff;border-color:var(--ink);}
+.icon-btn{width:30px;flex-shrink:0;padding:5px 0;font-size:14px;font-weight:700;text-align:center;}
+.search-input-wrap{position:relative;}
+.search-input-wrap .search-input-icon{position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:11px;opacity:.55;pointer-events:none;}
+.search-input-wrap input{padding-left:26px !important;}
 .radius-wrap{display:flex;align-items:center;gap:4px;}
 .radius-wrap input{width:48px;padding:4px 6px;border:1px solid var(--border);border-radius:7px;font-size:12px;font-weight:700;font-family:inherit;text-align:center;}
 .radius-wrap input:focus{outline:none;border-color:var(--accent);}
@@ -1613,6 +1617,10 @@ function handleCSVUpload(file){
 
 /* ══ Shop DB loader ══ */
 let shopDbDatasets=null; // null = not yet loaded; [] = loaded, empty. [{id,name}] from public.shop_datasets
+// Whether the "Load from Shop DB" dataset picker is currently revealed — in-memory UI state
+// like _filtersOpen elsewhere, not persisted. Kept closed by default so it doesn't sit on
+// screen permanently; opened by clicking loadDbBtn, closed again once a dataset is picked.
+let shopDbPickerOpen=false;
 async function refreshShopDbDatasets(){
   if(!currentUser)return;
   try{
@@ -2009,25 +2017,37 @@ function renderShopsTab(){
   if(shopDbDatasets===null)refreshShopDbDatasets();
   if(shopDbCampaigns===null)refreshShopDbCampaigns();
   const datasetOptionsHtml=(shopDbDatasets||[]).map(d=>`<option value="${esc(d.id)}">${esc(d.name)}</option>`).join('');
-  const dbSelect=`<select id="shopDbDatasetSelect" class="btn" style="width:100%;margin-bottom:6px;">
+  // The dataset picker used to sit on screen permanently even though "Load from Shop DB" is the
+  // only thing that ever reads it — that's the "list there all the time" clutter. Now it's
+  // hidden by default (shopDbPickerOpen, in-memory UI state like _filtersOpen elsewhere) and only
+  // appears once you click the load button; picking an option loads immediately and collapses it
+  // back down, so there's no separate "confirm" step to add.
+  const dbPicker=shopDbPickerOpen?`<select id="shopDbDatasetSelect" class="btn" style="width:100%;margin-bottom:8px;">
       <option value="all">全部店家 All shops</option>
       <option value="unassigned">未分類 Unassigned</option>
       ${datasetOptionsHtml}
-    </select>`;
-  const dbBtn=`${dbSelect}<button class="btn" id="loadDbBtn" style="width:100%;margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:6px;background:#EEF6FD;border-color:#137ECE;color:#002850;font-weight:700;">📊 從 Shop DB 載入 Load from Shop DB</button>`;
+    </select>`:'';
+  // "Add location dataset" (CSV upload) is a rarely-used action next to "Load from Shop DB" (used
+  // constantly) — demoted to a small icon-only button rather than matching it in size/prominence.
+  const addLayerIconBtn=`<button class="btn icon-btn" id="addLayerBtn" title="新增位置資料集 Add location dataset (CSV)">＋</button>`;
+  const loadDbBtn=`<button class="btn" id="loadDbBtn" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;background:#EEF6FD;border-color:#137ECE;color:#002850;font-weight:700;">📊 從 Shop DB 載入 Load from Shop DB</button>`;
+  const dbToolbar=`<div style="display:flex;gap:6px;margin-bottom:${shopDbPickerOpen?'6px':'8px'};">${addLayerIconBtn}${loadDbBtn}</div>${dbPicker}`;
   let uploadHtml=csvLayers.length===0
     ?`<div class="upload-zone" id="uploadZone">
         <div class="uz-icon">📋</div>
         <div class="uz-title">上傳資料集 Upload dataset</div>
         <div class="uz-sub">CSV 格式，需含 lat/GISY, lng/GISX 欄位（與 Shop DB 共用標準）<br>columns: name, status, priority, address, category, contact_name, contact_phone, notes, rating, lat, lng<br>status: 尚未開發 / 電訪過 / 電訪過-拒絕 / 拜訪過 / 拜訪過-有意願 / 拜訪過-評估中 / 拜訪過-拒絕 / 已合作 / 已合作-流失<br>priority: P1 / P2 / P3（optional）</div>
-      </div>${dbBtn}`
-    :`<button class="btn btn-teal" id="addLayerBtn" style="width:100%;margin-bottom:8px;">＋ 新增位置資料集 Add location dataset</button>${dbBtn}`;
+      </div>${dbToolbar}`
+    :dbToolbar;
 
   // Search box — finds a shop by name across whatever's currently shown on the map (active
   // layers, respecting their current filters) and jumps to it on click. Restricted to shops
   // that are actually rendered right now, since "jump to it" needs a real marker to open.
   const searchHtml=csvLayers.length>0?`<div class="shop-search-wrap" style="margin-bottom:10px;">
-      <input type="text" id="shopSearchInput" class="btn" style="width:100%;text-align:left;font-weight:500;box-sizing:border-box;" placeholder="🔍 搜尋店名 Search shop name…" value="${esc(shopSearchQuery)}">
+      <div class="search-input-wrap">
+        <span class="search-input-icon">🔍</span>
+        <input type="text" id="shopSearchInput" class="btn" style="width:100%;text-align:left;font-weight:500;box-sizing:border-box;" placeholder="搜尋店名 Search shop name…" value="${esc(shopSearchQuery)}">
+      </div>
       <div id="shopSearchResults">${buildShopSearchResultsHtml()}</div>
     </div>`:'';
 
@@ -2178,13 +2198,29 @@ function renderShopsTab(){
   if(csvLayers.length===0){
     document.getElementById('uploadZone').addEventListener('click',()=>document.getElementById('csvInput').click());
     setupDropzone(document.getElementById('uploadZone'));
-  } else {
-    document.getElementById('addLayerBtn').addEventListener('click',()=>document.getElementById('csvInput').click());
   }
+  // addLayerBtn (the small "＋" icon button) now renders in both the empty and populated states
+  // as part of dbToolbar, unlike the old full-width "Add location dataset" button that only
+  // existed once layers were loaded — wire it unconditionally.
+  document.getElementById('addLayerBtn').addEventListener('click',()=>document.getElementById('csvInput').click());
+  // "Load from Shop DB" no longer loads directly — it just reveals the dataset picker (see
+  // shopDbPickerOpen/dbPicker above), so the dropdown isn't sitting on screen all the time.
+  // Picking an option (below) is what actually triggers the load.
   document.getElementById('loadDbBtn').addEventListener('click', ()=>{
-    const sel=document.getElementById('shopDbDatasetSelect');
-    loadFromShopDB(sel?sel.value:'all');
+    shopDbPickerOpen=!shopDbPickerOpen;
+    renderShopsTab();
+    if(shopDbPickerOpen){
+      const sel=document.getElementById('shopDbDatasetSelect');
+      if(sel)sel.focus();
+    }
   });
+  const shopDbSel=document.getElementById('shopDbDatasetSelect');
+  if(shopDbSel){
+    shopDbSel.addEventListener('change',()=>{
+      shopDbPickerOpen=false;
+      loadFromShopDB(shopDbSel.value);
+    });
+  }
   el.querySelectorAll('.layer-toggle-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
       const lid=btn.dataset.lid;
