@@ -617,6 +617,7 @@ const PRIORITY_ORDER=[
   {key:'none',label:'無 None',color:'#AEB4BD'}
 ];
 function priorityKey(shop){ return shop.priority||'none'; }
+function campaignKey(shop){ return shop.campaign_id||'none'; }
 
 /* ══ state ══ */
 let shops=[];          // dealer coverage pins (draggable)
@@ -678,14 +679,17 @@ function ensureLayerFilterDefaults(layer){
   if(!layer.regionFilters)layer.regionFilters=new Set([...new Set(layer.data.map(s=>s.region).filter(Boolean))]);
   if(!layer.countyFilters)layer.countyFilters=new Set([...new Set(layer.data.map(s=>s.county).filter(Boolean))]);
   if(!layer.salesRepFilters)layer.salesRepFilters=new Set([...new Set(layer.data.map(s=>s.sales_rep).filter(Boolean))]);
-  // Campaigns are global (not dataset-scoped like Merida OEM) — a shop with no campaign_id
-  // always passes, same "empty = show everything" convention as region/county/sales-rep above.
-  if(!layer.campaignFilters)layer.campaignFilters=new Set([...new Set(layer.data.map(s=>s.campaign_id).filter(Boolean))]);
+  // Campaigns are global (not dataset-scoped like Merida OEM). Unlike region/county/sales-rep
+  // above, an unassigned shop does NOT always pass through here — "show me only this campaign's
+  // shops" needs to actually exclude everyone not in it, including shops with no campaign at
+  // all. So this works like priorityFilters: a closed set with its own explicit 'none' bucket
+  // (via campaignKey), not a passthrough-when-blank field.
+  if(!layer.campaignFilters)layer.campaignFilters=new Set([...new Set(layer.data.map(s=>campaignKey(s)))]);
   if(!layer.gRatingBucketFilters)layer.gRatingBucketFilters=new Set(GRATING_BUCKETS.map(b=>b.key));
   if(!layer.rCountBucketFilters)layer.rCountBucketFilters=new Set(RCOUNT_BUCKETS.map(b=>b.key));
-  // Priority is a strict whitelist like statusFilters (not the "empty = show everything"
-  // convention below) — the whole point is being able to narrow down to just P1, so a shop
-  // with no priority set needs its own selectable "none" bucket rather than always passing.
+  // Defaults to every key selected (not empty) — narrowing to just P1 works by deselecting the
+  // others, same as every other filter group. A shop with no priority set gets its own
+  // selectable "none" bucket (PRIORITY_ORDER includes it) rather than always passing through.
   if(!layer.priorityFilters)layer.priorityFilters=new Set(PRIORITY_ORDER.map(p=>p.key));
   // Only meaningful/shown for Merida-named research layers (see isMeridaLayer) — the
   // 'yes'/'no' bucket convention mirrors ratingFilters etc. so the same chip-group code path
@@ -716,7 +720,7 @@ function allKeysForField(layer,field){
     case'countyFilters':return[...new Set(layer.data.map(s=>s.county).filter(Boolean))];
     case'salesRepFilters':return[...new Set(layer.data.map(s=>s.sales_rep).filter(Boolean))];
     case'meridaOemFilters':return['yes','no'];
-    case'campaignFilters':return[...new Set(layer.data.map(s=>s.campaign_id).filter(Boolean))];
+    case'campaignFilters':return[...new Set(layer.data.map(s=>campaignKey(s)))];
     default:return[];
   }
 }
@@ -737,15 +741,22 @@ function groupHeader(label,layerId,field,extraBtnHtml){
 // disagree wildly (e.g. a county chip showing 54 while a status filter elsewhere had already
 // narrowed the true visible set down to 18), which read as the filters "conflicting".
 function shopPassesLayerFilters(shop,layer,exceptField){
-  if(exceptField!=='statusFilters' && !layer.statusFilters.has(shop.status))return false;
-  if(exceptField!=='priorityFilters' && !layer.priorityFilters.has(priorityKey(shop)))return false;
+  // statusFilters/priorityFilters used to be a special-cased strict whitelist (empty Set = show
+  // NOTHING, unlike every other filter here) on the theory that both offer a closed, exhaustive
+  // set of values so "deselect everything" is meaningful. In practice that's a footgun: clicking
+  // "清除 None" on either group — or on both while trying to isolate some other filter (e.g. the
+  // campaign chip) — silently blanks the whole map with no obvious cause. Unified to the same
+  // "empty = filter inactive" convention as everything else below; selecting a specific subset
+  // (e.g. just P1) still filters exactly as before.
+  if(exceptField!=='statusFilters' && layer.statusFilters.size>0 && !layer.statusFilters.has(shop.status))return false;
+  if(exceptField!=='priorityFilters' && layer.priorityFilters.size>0 && !layer.priorityFilters.has(priorityKey(shop)))return false;
   // tier/region/sales-rep filters: a shop with no value for that field always passes through
   // (not excluded just because it lacks that particular piece of data)
   if(exceptField!=='ratingFilters' && shop.ratingGroup && layer.ratingFilters.size>0 && !layer.ratingFilters.has(shop.ratingGroup))return false;
   if(exceptField!=='regionFilters' && shop.region && layer.regionFilters.size>0 && !layer.regionFilters.has(shop.region))return false;
   if(exceptField!=='countyFilters' && shop.county && layer.countyFilters.size>0 && !layer.countyFilters.has(shop.county))return false;
   if(exceptField!=='salesRepFilters' && shop.sales_rep && layer.salesRepFilters.size>0 && !layer.salesRepFilters.has(shop.sales_rep))return false;
-  if(exceptField!=='campaignFilters' && shop.campaign_id && layer.campaignFilters.size>0 && !layer.campaignFilters.has(shop.campaign_id))return false;
+  if(exceptField!=='campaignFilters' && layer.campaignFilters.size>0 && !layer.campaignFilters.has(campaignKey(shop)))return false;
   if(exceptField!=='gRatingBucketFilters'){
     const grb=gRatingBucketKey(shop.google_rating);
     if(layer.gRatingBucketFilters.size>0 && !layer.gRatingBucketFilters.has(grb))return false;
@@ -2126,13 +2137,18 @@ function renderShopsTab(){
       return`<span class="sf-chip${active?' active':''}" data-lid="${esc(layer.id)}" data-meridaoem="${k}" style="--dot-color:#1FA67A;font-size:10px;padding:2px 7px;"><span class="sf-dot"></span>${esc(MERIDA_OEM_LABELS[k])}<span class="sf-count">${cnt}</span></span>`;
     }).join(''):'';
     // Campaign chip group — global (not dataset-scoped), only shown when this layer actually
-    // has shops tagged with a campaign. Same chip-per-value pattern as sales rep above.
+    // has shops tagged with a campaign (campaignIds.length gates the whole group below). Includes
+    // an explicit "no campaign" chip alongside the real campaigns — a closed set like priority's
+    // 'none' bucket, not a passthrough-when-blank field, so selecting just one real campaign
+    // actually isolates it instead of showing unassigned shops too.
     const campaignIds=[...new Set(layer.data.map(s=>s.campaign_id).filter(Boolean))];
-    const campaignChips=campaignIds.map(cid=>{
-      const cnt=layer.data.filter(s=>s.campaign_id===cid&&shopPassesLayerFilters(s,layer,'campaignFilters')).length;
-      const active=layer.campaignFilters.has(cid);
-      const label=campaignNameById(cid)||'Campaign';
-      return`<span class="sf-chip${active?' active':''}" data-lid="${esc(layer.id)}" data-campaign="${esc(cid)}" style="--dot-color:#E65100;font-size:10px;padding:2px 7px;"><span class="sf-dot"></span>${esc(label)}<span class="sf-count">${cnt}</span></span>`;
+    const campaignChipKeys=campaignIds.length?[...campaignIds,'none']:[];
+    const campaignChips=campaignChipKeys.map(key=>{
+      const cnt=layer.data.filter(s=>campaignKey(s)===key&&shopPassesLayerFilters(s,layer,'campaignFilters')).length;
+      const active=layer.campaignFilters.has(key);
+      const label=key==='none'?'未指派計畫 No campaign':(campaignNameById(key)||'Campaign');
+      const dotColor=key==='none'?'#AEB4BD':'#E65100';
+      return`<span class="sf-chip${active?' active':''}" data-lid="${esc(layer.id)}" data-campaign="${esc(key)}" style="--dot-color:${dotColor};font-size:10px;padding:2px 7px;"><span class="sf-dot"></span>${esc(label)}<span class="sf-count">${cnt}</span></span>`;
     }).join('');
     // All applicable filter groups for this layer, gated by kind — collapsed by default behind
     // the "⚙ Filters" button so a growing number of datasets/filter dimensions doesn't clutter
