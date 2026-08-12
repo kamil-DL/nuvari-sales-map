@@ -674,6 +674,9 @@ function ensureLayerFilterDefaults(layer){
   if(!layer.regionFilters)layer.regionFilters=new Set([...new Set(layer.data.map(s=>s.region).filter(Boolean))]);
   if(!layer.countyFilters)layer.countyFilters=new Set([...new Set(layer.data.map(s=>s.county).filter(Boolean))]);
   if(!layer.salesRepFilters)layer.salesRepFilters=new Set([...new Set(layer.data.map(s=>s.sales_rep).filter(Boolean))]);
+  // Campaigns are global (not dataset-scoped like Merida OEM) — a shop with no campaign_id
+  // always passes, same "empty = show everything" convention as region/county/sales-rep above.
+  if(!layer.campaignFilters)layer.campaignFilters=new Set([...new Set(layer.data.map(s=>s.campaign_id).filter(Boolean))]);
   if(!layer.gRatingBucketFilters)layer.gRatingBucketFilters=new Set(GRATING_BUCKETS.map(b=>b.key));
   if(!layer.rCountBucketFilters)layer.rCountBucketFilters=new Set(RCOUNT_BUCKETS.map(b=>b.key));
   // Priority is a strict whitelist like statusFilters (not the "empty = show everything"
@@ -709,6 +712,7 @@ function allKeysForField(layer,field){
     case'countyFilters':return[...new Set(layer.data.map(s=>s.county).filter(Boolean))];
     case'salesRepFilters':return[...new Set(layer.data.map(s=>s.sales_rep).filter(Boolean))];
     case'meridaOemFilters':return['yes','no'];
+    case'campaignFilters':return[...new Set(layer.data.map(s=>s.campaign_id).filter(Boolean))];
     default:return[];
   }
 }
@@ -737,6 +741,7 @@ function shopPassesLayerFilters(shop,layer,exceptField){
   if(exceptField!=='regionFilters' && shop.region && layer.regionFilters.size>0 && !layer.regionFilters.has(shop.region))return false;
   if(exceptField!=='countyFilters' && shop.county && layer.countyFilters.size>0 && !layer.countyFilters.has(shop.county))return false;
   if(exceptField!=='salesRepFilters' && shop.sales_rep && layer.salesRepFilters.size>0 && !layer.salesRepFilters.has(shop.sales_rep))return false;
+  if(exceptField!=='campaignFilters' && shop.campaign_id && layer.campaignFilters.size>0 && !layer.campaignFilters.has(shop.campaign_id))return false;
   if(exceptField!=='gRatingBucketFilters'){
     const grb=gRatingBucketKey(shop.google_rating);
     if(layer.gRatingBucketFilters.size>0 && !layer.gRatingBucketFilters.has(grb))return false;
@@ -1425,10 +1430,11 @@ function buildBikeshopPopup(shop){
   const meridaOemBadge=shop.sells_merida_oem?`<span class="bs-badge" style="background:#1FA67A1A;color:#1FA67A;margin-left:5px;">美利達OEM Merida OEM</span>`:'';
   const goQtyBadge=shop.go_sample_qty?`<span class="bs-badge" style="background:#E8F3FB;color:#137ECE;margin-left:5px;">GO×${shop.go_sample_qty}</span>`:'';
   const ultraQtyBadge=shop.ultra_sample_qty?`<span class="bs-badge" style="background:#F2ECFB;color:#7C3AED;margin-left:5px;">Ultra×${shop.ultra_sample_qty}</span>`:'';
+  const campaignBadge=shop.campaign_id?`<span class="bs-badge" style="background:#FFF3E0;color:#E65100;margin-left:5px;">🎯 ${esc(campaignNameById(shop.campaign_id)||'Campaign')}</span>`:'';
   return`<div class="bs-popup">
     <div class="bs-name">${esc(shop.name)}</div>
     ${layer?`<div style="font-size:10px;margin-bottom:4px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${esc(layer.color)};margin-right:4px;vertical-align:middle;"></span>${esc(layer.name)}</div>`:''}
-    <span class="bs-badge" style="background:${esc(st.bg)};color:${esc(st.color)}">${esc(st.label)}</span>${priorityBadge}${meridaOemBadge}${goQtyBadge}${ultraQtyBadge}${ratingBadge}${googleRatingBadge}
+    <span class="bs-badge" style="background:${esc(st.bg)};color:${esc(st.color)}">${esc(st.label)}</span>${priorityBadge}${meridaOemBadge}${goQtyBadge}${ultraQtyBadge}${campaignBadge}${ratingBadge}${googleRatingBadge}
     ${shop.address?`<div class="bs-addr">${esc(shop.address)}</div>`:''}
     ${categoryLine}
     ${phoneLine}
@@ -1461,10 +1467,11 @@ function buildBikeshopPreviewPopup(shop){
   const meridaOemBadge=shop.sells_merida_oem?`<span class="bs-badge" style="background:#1FA67A1A;color:#1FA67A;margin-left:5px;">美利達OEM Merida OEM</span>`:'';
   const goQtyBadge=shop.go_sample_qty?`<span class="bs-badge" style="background:#E8F3FB;color:#137ECE;margin-left:5px;">GO×${shop.go_sample_qty}</span>`:'';
   const ultraQtyBadge=shop.ultra_sample_qty?`<span class="bs-badge" style="background:#F2ECFB;color:#7C3AED;margin-left:5px;">Ultra×${shop.ultra_sample_qty}</span>`:'';
+  const campaignBadge=shop.campaign_id?`<span class="bs-badge" style="background:#FFF3E0;color:#E65100;margin-left:5px;">🎯 ${esc(campaignNameById(shop.campaign_id)||'Campaign')}</span>`:'';
   return`<div class="bs-popup">
     <div class="bs-name">${esc(shop.name)}</div>
     ${layer?`<div style="font-size:10px;margin-bottom:4px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${esc(layer.color)};margin-right:4px;vertical-align:middle;"></span>${esc(layer.name)}</div>`:''}
-    <span class="bs-badge" style="background:${esc(st.bg)};color:${esc(st.color)}">${esc(st.label)}</span>${priorityBadge}${meridaOemBadge}${goQtyBadge}${ultraQtyBadge}${ratingBadge}${googleRatingBadge}
+    <span class="bs-badge" style="background:${esc(st.bg)};color:${esc(st.color)}">${esc(st.label)}</span>${priorityBadge}${meridaOemBadge}${goQtyBadge}${ultraQtyBadge}${campaignBadge}${ratingBadge}${googleRatingBadge}
     ${shop.address?`<div class="bs-addr">${esc(shop.address)}</div>`:''}
     ${categoryLine}
     ${phoneLine}
@@ -1618,7 +1625,27 @@ async function refreshShopDbDatasets(){
   if(document.getElementById('tab-shops'))renderShopsTab();
 }
 
-const SHOP_FETCH_COLUMNS='id,name,address,lat,lng,status,priority,contact_name,contact_phone,notes,region,county,district,coord_status,category,sales_rep,google_name,google_address,google_place_id,google_rating,google_rating_count,business_status,dataset_id,sells_merida_oem,go_sample_qty,ultra_sample_qty';
+// Campaigns (public.campaigns) — time-boxed outreach drives, independent of priority/status/
+// dataset. Same load-once-cache pattern as shopDbDatasets above.
+let shopDbCampaigns=null; // null = not yet loaded; [] = loaded, empty. [{id,name}] from public.campaigns
+async function refreshShopDbCampaigns(){
+  if(!currentUser)return;
+  try{
+    const{data,error}=await sbClient.from('campaigns').select('id,name').order('name');
+    if(error)throw error;
+    shopDbCampaigns=data||[];
+  }catch(e){
+    shopDbCampaigns=[];
+  }
+  if(document.getElementById('tab-shops'))renderShopsTab();
+}
+function campaignNameById(id){
+  if(!id)return null;
+  const c=(shopDbCampaigns||[]).find(c=>c.id===id);
+  return c?c.name:null;
+}
+
+const SHOP_FETCH_COLUMNS='id,name,address,lat,lng,status,priority,contact_name,contact_phone,notes,region,county,district,coord_status,category,sales_rep,google_name,google_address,google_place_id,google_rating,google_rating_count,business_status,dataset_id,sells_merida_oem,go_sample_qty,ultra_sample_qty,campaign_id';
 /* PostgREST caps rows per request at a server-configured max (1000 by default on Supabase) —
    a single query silently truncates instead of erroring, which is how "Taiwan Bike Shops"
    (2,550 rows) previously showed as exactly 1000/1000. Page through with .range() until a
@@ -1669,6 +1696,7 @@ function mapShopDbRows(mappable,layerId,layerColor){
     sells_merida_oem:!!s.sells_merida_oem,
     go_sample_qty:s.go_sample_qty||null,
     ultra_sample_qty:s.ultra_sample_qty||null,
+    campaign_id:s.campaign_id||null,
     _layerId:layerId,
     _layerColor:layerColor,
     _dbId:s.id
@@ -1979,6 +2007,7 @@ function renderShopsTab(){
   if(badge)badge.textContent=csvLayers.length>0?`(${bikeshopData.length})`:'';
 
   if(shopDbDatasets===null)refreshShopDbDatasets();
+  if(shopDbCampaigns===null)refreshShopDbCampaigns();
   const datasetOptionsHtml=(shopDbDatasets||[]).map(d=>`<option value="${esc(d.id)}">${esc(d.name)}</option>`).join('');
   const dbSelect=`<select id="shopDbDatasetSelect" class="btn" style="width:100%;margin-bottom:6px;">
       <option value="all">全部店家 All shops</option>
@@ -2076,6 +2105,15 @@ function renderShopsTab(){
       const active=layer.meridaOemFilters.has(k);
       return`<span class="sf-chip${active?' active':''}" data-lid="${esc(layer.id)}" data-meridaoem="${k}" style="--dot-color:#1FA67A;font-size:10px;padding:2px 7px;"><span class="sf-dot"></span>${esc(MERIDA_OEM_LABELS[k])}<span class="sf-count">${cnt}</span></span>`;
     }).join(''):'';
+    // Campaign chip group — global (not dataset-scoped), only shown when this layer actually
+    // has shops tagged with a campaign. Same chip-per-value pattern as sales rep above.
+    const campaignIds=[...new Set(layer.data.map(s=>s.campaign_id).filter(Boolean))];
+    const campaignChips=campaignIds.map(cid=>{
+      const cnt=layer.data.filter(s=>s.campaign_id===cid&&shopPassesLayerFilters(s,layer,'campaignFilters')).length;
+      const active=layer.campaignFilters.has(cid);
+      const label=campaignNameById(cid)||'Campaign';
+      return`<span class="sf-chip${active?' active':''}" data-lid="${esc(layer.id)}" data-campaign="${esc(cid)}" style="--dot-color:#E65100;font-size:10px;padding:2px 7px;"><span class="sf-dot"></span>${esc(label)}<span class="sf-count">${cnt}</span></span>`;
+    }).join('');
     // All applicable filter groups for this layer, gated by kind — collapsed by default behind
     // the "⚙ Filters" button so a growing number of datasets/filter dimensions doesn't clutter
     // the list. layer._filtersOpen is in-memory UI state, not persisted.
@@ -2089,7 +2127,8 @@ function renderShopsTab(){
       regions.length?`${groupHeader('地區 Region',layer.id,'regionFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${regionChips}</div>`:'',
       counties.length?`${groupHeader('縣市 County',layer.id,'countyFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${countyChips}</div>`:'',
       (showSalesRepAndTier&&salesReps.length)?`${groupHeader('業務員 Sales rep',layer.id,'salesRepFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${salesRepChips}</div>`:'',
-      isMerida?`${groupHeader('美利達 OEM Merida OEM',layer.id,'meridaOemFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;">${meridaOemChips}</div>`:''
+      isMerida?`${groupHeader('美利達 OEM Merida OEM',layer.id,'meridaOemFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${meridaOemChips}</div>`:'',
+      campaignIds.length?`${groupHeader('計畫 Campaign',layer.id,'campaignFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;">${campaignChips}</div>`:''
     ].filter(Boolean).join('');
     const filtersOpen=!!layer._filtersOpen;
     layersHtml+=`<div class="layer-card" style="border:1.5px solid ${isActive?layer.color:'var(--border)'};border-radius:9px;padding:9px 11px;margin-bottom:8px;">
@@ -2253,6 +2292,9 @@ function renderShopsTab(){
       } else if(chip.dataset.meridaoem!==undefined){
         const k=chip.dataset.meridaoem;
         if(layer.meridaOemFilters.has(k))layer.meridaOemFilters.delete(k);else layer.meridaOemFilters.add(k);
+      } else if(chip.dataset.campaign!==undefined){
+        const cid=chip.dataset.campaign;
+        if(layer.campaignFilters.has(cid))layer.campaignFilters.delete(cid);else layer.campaignFilters.add(cid);
       }
       persistBikeshops();rebuildBikeshopMarkers();renderShopsTab();
     });
@@ -2549,7 +2591,8 @@ function persistBikeshops(){
     // a bare Set into "{}", so each one must be spread into a plain array here and rebuilt back
     // into a Set in loadSession(). (regionFilters/salesRepFilters previously fell through this
     // gap — a reload would leave them as inert {} objects instead of Sets — fixed alongside the
-    // two new bucket filters below since they'd have hit the exact same bug.)
+    // two new bucket filters below since they'd have hit the exact same bug. meridaOemFilters/
+    // campaignFilters had the exact same gap when they were added later — fixed here too.)
     const serializableLayers=csvLayers.map(l=>({...l,
       statusFilters:[...l.statusFilters],
       priorityFilters:l.priorityFilters?[...l.priorityFilters]:[],
@@ -2558,7 +2601,9 @@ function persistBikeshops(){
       countyFilters:l.countyFilters?[...l.countyFilters]:[],
       salesRepFilters:l.salesRepFilters?[...l.salesRepFilters]:[],
       gRatingBucketFilters:l.gRatingBucketFilters?[...l.gRatingBucketFilters]:[],
-      rCountBucketFilters:l.rCountBucketFilters?[...l.rCountBucketFilters]:[]
+      rCountBucketFilters:l.rCountBucketFilters?[...l.rCountBucketFilters]:[],
+      meridaOemFilters:l.meridaOemFilters?[...l.meridaOemFilters]:[],
+      campaignFilters:l.campaignFilters?[...l.campaignFilters]:[]
     }));
     localStorage.setItem(BIKESHOPS_STORAGE_KEY,JSON.stringify({layers:serializableLayers,activeLayerIds:[...activeLayerIds]}));
     const badge=document.getElementById('shopTabBadge');if(badge&&bikeshopData.length>0)badge.textContent=`(${bikeshopData.length})`;
@@ -2577,6 +2622,12 @@ function loadSession(){
         // Array.isArray guards: layers persisted before this fix have regionFilters/
         // salesRepFilters as stale "{}" objects (Set serialized wrong), which would throw if
         // passed straight into `new Set(...)` (not iterable) — fall back to empty instead.
+        // meridaOemFilters falling back to [] here (rather than ['yes','no']) is fine even
+        // though that changes its "show everything" meaning — ensureLayerFilterDefaults'
+        // `!layer.meridaOemFilters` check no longer applies once this key exists at all, but an
+        // empty Set already means "no filter active" by the same convention every other Set here
+        // uses, so old sessions just silently regain the "show everything" behavior instead of
+        // erroring.
         csvLayers=b.layers.map(l=>({...l,
           statusFilters:new Set(Array.isArray(l.statusFilters)?l.statusFilters:[]),
           priorityFilters:new Set(Array.isArray(l.priorityFilters)?l.priorityFilters:PRIORITY_ORDER.map(p=>p.key)),
@@ -2585,7 +2636,9 @@ function loadSession(){
           countyFilters:new Set(Array.isArray(l.countyFilters)?l.countyFilters:[]),
           salesRepFilters:new Set(Array.isArray(l.salesRepFilters)?l.salesRepFilters:[]),
           gRatingBucketFilters:new Set(Array.isArray(l.gRatingBucketFilters)?l.gRatingBucketFilters:[]),
-          rCountBucketFilters:new Set(Array.isArray(l.rCountBucketFilters)?l.rCountBucketFilters:[])
+          rCountBucketFilters:new Set(Array.isArray(l.rCountBucketFilters)?l.rCountBucketFilters:[]),
+          meridaOemFilters:new Set(Array.isArray(l.meridaOemFilters)?l.meridaOemFilters:[]),
+          campaignFilters:new Set(Array.isArray(l.campaignFilters)?l.campaignFilters:[])
         }));
         activeLayerIds=new Set(b.activeLayerIds||csvLayers.map(l=>l.id));
         rebuildBikeshopDataFromLayers();

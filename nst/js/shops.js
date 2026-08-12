@@ -1,7 +1,7 @@
 import { supabase } from './supabase-client.js';
 import { fetchAllPages } from '../../shared/supabase-paginate.js';
 
-export async function loadShops({ status, search, region, county, salesRep, priority, datasetId, onlyMine, meridaOemOnly, userId } = {}) {
+export async function loadShops({ status, search, region, county, salesRep, priority, datasetId, onlyMine, meridaOemOnly, campaignId, userId } = {}) {
   return fetchAllPages((from, to) => {
     let q = supabase.from('shops').select('*').order('created_at', { ascending: false });
     if (status && status !== 'all') q = q.eq('status', status);
@@ -17,6 +17,8 @@ export async function loadShops({ status, search, region, county, salesRep, prio
     // Only ever applied alongside the Merida dataset filter (see isMeridaDataset in
     // shops.html) — sells_merida_oem isn't meaningful outside Merida's dealer network.
     if (meridaOemOnly) q = q.eq('sells_merida_oem', true);
+    if (campaignId === 'unassigned') q = q.is('campaign_id', null);
+    else if (campaignId && campaignId !== 'all') q = q.eq('campaign_id', campaignId);
     return q.range(from, to);
   });
 }
@@ -110,6 +112,46 @@ export async function deleteDataset(id) {
   const { data, error } = await supabase.from('shop_datasets').delete().eq('id', id).select();
   if (error) throw error;
   if (!data || data.length === 0) throw new Error('刪除失敗：找不到符合的資料集，可能已被刪除或您沒有權限刪除 · Delete failed: no matching dataset found — already deleted, or you don\'t have permission');
+}
+
+// Campaigns are time-boxed outreach drives (e.g. "2026年8月夥伴拓展計畫") — deliberately
+// separate from both priority (a rep's standing "call first" ranking) and status (actual
+// pipeline stage), so a drive can be tracked, filtered, and retired without touching either.
+// Same shape as shop_datasets/dataset_id above.
+export async function loadCampaigns() {
+  const { data, error } = await supabase.from('campaigns').select('*').order('created_at', { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+export async function createCampaign(name, userId, fields = {}) {
+  const { data, error } = await supabase.from('campaigns')
+    .insert({ name, created_by: userId, ...fields })
+    .select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateCampaign(id, fields) {
+  const { data, error } = await supabase.from('campaigns')
+    .update(fields).eq('id', id).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteCampaign(id) {
+  const { data, error } = await supabase.from('campaigns').delete().eq('id', id).select();
+  if (error) throw error;
+  if (!data || data.length === 0) throw new Error('刪除失敗：找不到符合的計畫，可能已被刪除或您沒有權限刪除 · Delete failed: no matching campaign found — already deleted, or you don\'t have permission');
+}
+
+export async function countAllShopsByCampaign() {
+  const rows = await fetchAllPages((from, to) =>
+    supabase.from('shops').select('campaign_id').range(from, to)
+  );
+  const counts = {};
+  rows.forEach(s => { if (s.campaign_id) counts[s.campaign_id] = (counts[s.campaign_id] || 0) + 1; });
+  return counts;
 }
 
 export const STATUS_LABELS = {

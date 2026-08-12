@@ -132,6 +132,10 @@
       <select id="ef-dataset" class="nst-select">
         <option value="">未分類 Unassigned</option>
       </select>
+      <label class="nst-field-label">計畫 Campaign</label>
+      <select id="ef-campaign" class="nst-select">
+        <option value="">未指派計畫 No campaign</option>
+      </select>
       <!-- Only relevant for shops in the Merida dataset — toggled by the ef-dataset change
            handler, not shown for other datasets. -->
       <label id="ef-merida-oem-label" class="nst-field-label" style="display:none;flex-direction:row;align-items:center;gap:6px;cursor:pointer;">
@@ -188,7 +192,7 @@
 <script type="module">
 import { requireAuth, signOut } from './js/auth.js';
 import { LOGO } from './js/logo.js';
-import { getShop, updateShop, deleteShop, STATUS_LABELS, PRIORITY_LABELS, loadUserDirectory, repLabel, loadDatasets } from './js/shops.js';
+import { getShop, updateShop, deleteShop, STATUS_LABELS, PRIORITY_LABELS, loadUserDirectory, repLabel, loadDatasets, loadCampaigns } from './js/shops.js';
 import { loadVisits, addVisit, VISIT_STATUS_LABELS } from './js/visits.js';
 import { friendlyError } from '../shared/friendly-error.js';
 import { canDeleteShops } from '../shared/delete-policy.js';
@@ -210,6 +214,7 @@ if (!shopId) { location.href = 'shops.html'; }
 let shop = null;
 let repDirectory = [];
 let datasets = [];
+let campaigns = [];
 
 async function loadRepOptions() {
   try {
@@ -231,6 +236,20 @@ function datasetName(id) {
   if (!id) return null;
   const d = datasets.find(d => d.id === id);
   return d ? d.name : null;
+}
+
+async function loadCampaignOptions() {
+  try {
+    campaigns = await loadCampaigns();
+  } catch (e) {
+    campaigns = [];
+  }
+}
+
+function campaignName(id) {
+  if (!id) return null;
+  const c = campaigns.find(c => c.id === id);
+  return c ? c.name : null;
 }
 
 // sells_merida_oem only means something for shops in Merida's own dealer-network dataset.
@@ -260,6 +279,13 @@ function populateDatasetSelect(currentDatasetId) {
   const optionsHtml = datasets.map(d => `<option value="${esc(d.id)}">${esc(d.name)}</option>`).join('');
   sel.innerHTML = '<option value="">未分類 Unassigned</option>' + optionsHtml;
   sel.value = currentDatasetId || '';
+}
+
+function populateCampaignSelect(currentCampaignId) {
+  const sel = document.getElementById('ef-campaign');
+  const optionsHtml = campaigns.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+  sel.innerHTML = '<option value="">未指派計畫 No campaign</option>' + optionsHtml;
+  sel.value = currentCampaignId || '';
 }
 
 // Every county is offered, not just ones some shop already has — otherwise there'd be no way
@@ -334,7 +360,8 @@ function renderShop() {
   document.getElementById('shop-status-badge').innerHTML = statusBadge(shop.status) + priorityBadge(shop.priority)
     + (shop.sells_merida_oem ? '<span class="nst-badge badge-teal" style="margin-left:6px">美利達 OEM</span>' : '')
     + (shop.go_sample_qty ? `<span class="nst-badge badge-blue" style="margin-left:6px">GO×${shop.go_sample_qty}</span>` : '')
-    + (shop.ultra_sample_qty ? `<span class="nst-badge badge-purple" style="margin-left:6px">Ultra×${shop.ultra_sample_qty}</span>` : '');
+    + (shop.ultra_sample_qty ? `<span class="nst-badge badge-purple" style="margin-left:6px">Ultra×${shop.ultra_sample_qty}</span>` : '')
+    + (shop.campaign_id ? `<span class="nst-badge badge-orange" style="margin-left:6px">🎯 ${esc(campaignName(shop.campaign_id) || '—')}</span>` : '');
   document.getElementById('f-address').textContent = shop.address || '—';
   document.getElementById('f-region').textContent = shop.region || '—';
   document.getElementById('f-county').textContent = shop.county || '—';
@@ -382,7 +409,7 @@ async function renderVisits() {
 
 // Load shop
 try {
-  [shop] = await Promise.all([getShop(shopId), loadRepOptions(), loadDatasetOptions()]);
+  [shop] = await Promise.all([getShop(shopId), loadRepOptions(), loadDatasetOptions(), loadCampaignOptions()]);
   renderShop();
   document.getElementById('loading').style.display = 'none';
   document.getElementById('content').style.display = '';
@@ -406,6 +433,7 @@ document.getElementById('edit-btn').addEventListener('click', () => {
   document.getElementById('ef-contact-phone').value = shop.contact_phone || '';
   populateRepSelect(shop.sales_rep || '');
   populateDatasetSelect(shop.dataset_id || '');
+  populateCampaignSelect(shop.campaign_id || '');
   document.getElementById('ef-merida-oem').checked = !!shop.sells_merida_oem;
   updateMeridaOemFieldVisibility();
   document.getElementById('ef-go-qty').value = shop.go_sample_qty ? shop.go_sample_qty : '';
@@ -438,6 +466,7 @@ document.getElementById('edit-save-btn').addEventListener('click', async () => {
       contact_phone: document.getElementById('ef-contact-phone').value.trim() || null,
       sales_rep: document.getElementById('ef-sales-rep').value || null,
       dataset_id: document.getElementById('ef-dataset').value || null,
+      campaign_id: document.getElementById('ef-campaign').value || null,
       sells_merida_oem: isMeridaDataset(document.getElementById('ef-dataset').value) && document.getElementById('ef-merida-oem').checked,
       go_sample_qty: document.getElementById('ef-go-qty').value ? parseInt(document.getElementById('ef-go-qty').value, 10) : null,
       ultra_sample_qty: document.getElementById('ef-ultra-qty').value ? parseInt(document.getElementById('ef-ultra-qty').value, 10) : null,
