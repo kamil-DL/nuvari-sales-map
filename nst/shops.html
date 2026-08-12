@@ -196,6 +196,18 @@
       <label id="f-merida-oem-label" class="nst-field-label" style="display:none;flex-direction:row;align-items:center;gap:6px;cursor:pointer;">
         <input type="checkbox" id="f-merida-oem"/> 美利達 OEM 經銷商 Merida OEM dealer
       </label>
+      <!-- How many physical GO/Ultra samples this shop has, independent of status — a shop can
+           hold a sample at any stage of the pipeline. Blank/0 = no sample. -->
+      <div style="display:flex;gap:10px;">
+        <div style="flex:1;">
+          <label class="nst-field-label">GO 樣品數量 GO sample qty</label>
+          <input id="f-go-qty" type="number" min="0" step="1" class="nst-input" placeholder="0"/>
+        </div>
+        <div style="flex:1;">
+          <label class="nst-field-label">Ultra 樣品數量 Ultra sample qty</label>
+          <input id="f-ultra-qty" type="number" min="0" step="1" class="nst-input" placeholder="0"/>
+        </div>
+      </div>
       <label class="nst-field-label">備註 Notes</label>
       <textarea id="f-notes" class="nst-textarea" placeholder="Additional notes…"></textarea>
       <div id="modal-error" class="nst-auth-error" style="margin-top:10px"></div>
@@ -383,6 +395,8 @@ function renderShops(shops) {
           ${statusBadge(s.status)}
           ${regionBadge(s.region)}
           ${s.sells_merida_oem ? `<span class="nst-badge badge-teal">美利達 OEM</span>` : ''}
+          ${s.go_sample_qty ? `<span class="nst-badge badge-blue">GO×${s.go_sample_qty}</span>` : ''}
+          ${s.ultra_sample_qty ? `<span class="nst-badge badge-purple">Ultra×${s.ultra_sample_qty}</span>` : ''}
           ${dsName ? `<span class="nst-badge badge-gray">🗂 ${esc(dsName)}</span>` : ''}
         </div>
         <a class="shop-card-open" href="shop-detail.html?id=${s.id}" title="開啟 Open">↗</a>
@@ -673,6 +687,8 @@ function openModal(shop = null) {
   document.getElementById('f-dataset').value = shop ? (shop.dataset_id || '') : '';
   document.getElementById('f-merida-oem').checked = shop ? !!shop.sells_merida_oem : false;
   updateMeridaOemFieldVisibility();
+  document.getElementById('f-go-qty').value = shop && shop.go_sample_qty ? shop.go_sample_qty : '';
+  document.getElementById('f-ultra-qty').value = shop && shop.ultra_sample_qty ? shop.ultra_sample_qty : '';
   document.getElementById('f-notes').value = shop ? (shop.notes || '') : '';
   document.getElementById('modal-error').textContent = '';
   editingShopCreatedBy = shop ? shop.created_by : null;
@@ -717,6 +733,8 @@ document.getElementById('modal-save-btn').addEventListener('click', async () => 
     sales_rep: document.getElementById('f-sales-rep').value || null,
     dataset_id: document.getElementById('f-dataset').value || null,
     sells_merida_oem: isMeridaDataset(document.getElementById('f-dataset').value) && document.getElementById('f-merida-oem').checked,
+    go_sample_qty: document.getElementById('f-go-qty').value ? parseInt(document.getElementById('f-go-qty').value, 10) : null,
+    ultra_sample_qty: document.getElementById('f-ultra-qty').value ? parseInt(document.getElementById('f-ultra-qty').value, 10) : null,
     notes: document.getElementById('f-notes').value.trim() || null,
   };
   const btn = document.getElementById('modal-save-btn');

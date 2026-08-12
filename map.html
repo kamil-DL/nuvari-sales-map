@@ -1423,10 +1423,12 @@ function buildBikeshopPopup(shop){
     </div>`:'';
   const priorityBadge=shop.priority&&PRIORITY_STYLE[shop.priority]?`<span class="bs-badge" style="background:${esc(PRIORITY_STYLE[shop.priority].bg)};color:${esc(PRIORITY_STYLE[shop.priority].color)};margin-left:5px;">${esc(PRIORITY_STYLE[shop.priority].label)}</span>`:'';
   const meridaOemBadge=shop.sells_merida_oem?`<span class="bs-badge" style="background:#1FA67A1A;color:#1FA67A;margin-left:5px;">美利達OEM Merida OEM</span>`:'';
+  const goQtyBadge=shop.go_sample_qty?`<span class="bs-badge" style="background:#E8F3FB;color:#137ECE;margin-left:5px;">GO×${shop.go_sample_qty}</span>`:'';
+  const ultraQtyBadge=shop.ultra_sample_qty?`<span class="bs-badge" style="background:#F2ECFB;color:#7C3AED;margin-left:5px;">Ultra×${shop.ultra_sample_qty}</span>`:'';
   return`<div class="bs-popup">
     <div class="bs-name">${esc(shop.name)}</div>
     ${layer?`<div style="font-size:10px;margin-bottom:4px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${esc(layer.color)};margin-right:4px;vertical-align:middle;"></span>${esc(layer.name)}</div>`:''}
-    <span class="bs-badge" style="background:${esc(st.bg)};color:${esc(st.color)}">${esc(st.label)}</span>${priorityBadge}${meridaOemBadge}${ratingBadge}${googleRatingBadge}
+    <span class="bs-badge" style="background:${esc(st.bg)};color:${esc(st.color)}">${esc(st.label)}</span>${priorityBadge}${meridaOemBadge}${goQtyBadge}${ultraQtyBadge}${ratingBadge}${googleRatingBadge}
     ${shop.address?`<div class="bs-addr">${esc(shop.address)}</div>`:''}
     ${categoryLine}
     ${phoneLine}
@@ -1457,10 +1459,12 @@ function buildBikeshopPreviewPopup(shop){
   const phoneLine=shop.contact_phone?`<div class="bs-addr">Tel: ${esc(shop.contact_phone)}</div>`:'';
   const priorityBadge=shop.priority&&PRIORITY_STYLE[shop.priority]?`<span class="bs-badge" style="background:${esc(PRIORITY_STYLE[shop.priority].bg)};color:${esc(PRIORITY_STYLE[shop.priority].color)};margin-left:5px;">${esc(PRIORITY_STYLE[shop.priority].label)}</span>`:'';
   const meridaOemBadge=shop.sells_merida_oem?`<span class="bs-badge" style="background:#1FA67A1A;color:#1FA67A;margin-left:5px;">美利達OEM Merida OEM</span>`:'';
+  const goQtyBadge=shop.go_sample_qty?`<span class="bs-badge" style="background:#E8F3FB;color:#137ECE;margin-left:5px;">GO×${shop.go_sample_qty}</span>`:'';
+  const ultraQtyBadge=shop.ultra_sample_qty?`<span class="bs-badge" style="background:#F2ECFB;color:#7C3AED;margin-left:5px;">Ultra×${shop.ultra_sample_qty}</span>`:'';
   return`<div class="bs-popup">
     <div class="bs-name">${esc(shop.name)}</div>
     ${layer?`<div style="font-size:10px;margin-bottom:4px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${esc(layer.color)};margin-right:4px;vertical-align:middle;"></span>${esc(layer.name)}</div>`:''}
-    <span class="bs-badge" style="background:${esc(st.bg)};color:${esc(st.color)}">${esc(st.label)}</span>${priorityBadge}${meridaOemBadge}${ratingBadge}${googleRatingBadge}
+    <span class="bs-badge" style="background:${esc(st.bg)};color:${esc(st.color)}">${esc(st.label)}</span>${priorityBadge}${meridaOemBadge}${goQtyBadge}${ultraQtyBadge}${ratingBadge}${googleRatingBadge}
     ${shop.address?`<div class="bs-addr">${esc(shop.address)}</div>`:''}
     ${categoryLine}
     ${phoneLine}
@@ -1614,7 +1618,7 @@ async function refreshShopDbDatasets(){
   if(document.getElementById('tab-shops'))renderShopsTab();
 }
 
-const SHOP_FETCH_COLUMNS='id,name,address,lat,lng,status,priority,contact_name,contact_phone,notes,region,county,district,coord_status,category,sales_rep,google_name,google_address,google_place_id,google_rating,google_rating_count,business_status,dataset_id,sells_merida_oem';
+const SHOP_FETCH_COLUMNS='id,name,address,lat,lng,status,priority,contact_name,contact_phone,notes,region,county,district,coord_status,category,sales_rep,google_name,google_address,google_place_id,google_rating,google_rating_count,business_status,dataset_id,sells_merida_oem,go_sample_qty,ultra_sample_qty';
 /* PostgREST caps rows per request at a server-configured max (1000 by default on Supabase) —
    a single query silently truncates instead of erroring, which is how "Taiwan Bike Shops"
    (2,550 rows) previously showed as exactly 1000/1000. Page through with .range() until a
@@ -1663,6 +1667,8 @@ function mapShopDbRows(mappable,layerId,layerColor){
     google_rating_count:s.google_rating_count!=null?parseInt(s.google_rating_count,10):null,
     business_status:s.business_status||null,
     sells_merida_oem:!!s.sells_merida_oem,
+    go_sample_qty:s.go_sample_qty||null,
+    ultra_sample_qty:s.ultra_sample_qty||null,
     _layerId:layerId,
     _layerColor:layerColor,
     _dbId:s.id
