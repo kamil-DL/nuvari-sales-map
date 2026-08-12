@@ -132,6 +132,8 @@ table.sh-table th{text-align:left;font-size:9px;font-weight:700;text-transform:u
 table.sh-table td{padding:5px 6px;border-bottom:1px solid #F0F1F4;vertical-align:middle;}
 table.sh-table tbody tr{cursor:pointer;}
 table.sh-table tbody tr:hover{background:var(--accent-light);}
+.shop-search-row:hover{background:var(--accent-light);}
+.shop-search-row:last-child{border-bottom:none;}
 .sh-name{font-weight:600;max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .sh-badge{display:inline-block;font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;}
 /* scenarios */
@@ -615,6 +617,8 @@ let shops=[];          // dealer coverage pins (draggable)
 let csvLayers=[];      // [{id, name, color, data:[...shops], statusFilters:Set, visible:bool}]
 let activeLayerIds=new Set(); // which layers are shown on map
 let bikeshopData=[];   // flattened view of all visible layer shops
+let bikeshopMarkerRefs=[]; // parallel array to bikeshopData — same index, the marker on the map
+let shopSearchQuery='';    // "search for a shop by name" box in the Shops tab
 let targetRadiusKm=10;
 let colorMode='density';
 let activeScenarioId=null;
@@ -1216,6 +1220,7 @@ function setClusterEnabled(v){
 }
 function rebuildBikeshopMarkers(){
   bikeshopGroup.clearLayers();
+  bikeshopMarkerRefs=[];
   if(csvLayers.length===0)return;
   rebuildBikeshopDataFromLayers();
   bikeshopData.forEach(shop=>{
@@ -1229,30 +1234,32 @@ function rebuildBikeshopMarkers(){
     const m=L.circleMarker([shop.lat,shop.lng],{
       radius:7,color:'#fff',weight:1.8,fillColor:fillColor,fillOpacity:0.9,pane:'shopPane'
     }).addTo(bikeshopGroup);
+    bikeshopMarkerRefs.push(m); // same index as shop within bikeshopData — used by the shop search "jump to" feature
     m.bindPopup(buildBikeshopPopup(shop),{maxWidth:230,closeOnClick:false});
     // Hover shows a lightweight read-only preview (no color swatches/edit form/links) so
     // glancing across many pins is cheap; an actual click "pins" it open as the full,
-    // editable popup. clickedOpen tracks which state we're in per-marker — reset on
-    // popupclose so hovering the same pin again later goes back to the light preview
-    // instead of jumping straight to full.
-    let clickedOpen=false;
+    // editable popup. m._clickedOpen tracks which state we're in per-marker — reset on
+    // popupclose so hovering the same pin again later goes back to the light preview instead
+    // of jumping straight to full. Kept as a marker property (not a closure var) so the shop
+    // search "jump to" feature can trigger the same full-popup-open behavior from outside.
+    m._clickedOpen=false;
     m.on('mouseover',()=>{
-      if(clickedOpen)return;
+      if(m._clickedOpen)return;
       m.closePopup();
       m.setPopupContent(buildBikeshopPreviewPopup(shop));
       m.openPopup();
     });
     m.on('mouseout',()=>{
-      if(clickedOpen)return;
+      if(m._clickedOpen)return;
       m.closePopup();
     });
-    m.on('popupclose',()=>{clickedOpen=false;});
+    m.on('popupclose',()=>{m._clickedOpen=false;});
     m.on('click',e=>{
       L.DomEvent.stopPropagation(e);
-      // closePopup() fires 'popupclose' synchronously, which would reset clickedOpen back to
+      // closePopup() fires 'popupclose' synchronously, which would reset _clickedOpen back to
       // false via the listener above if set beforehand — set it true AFTER closing, not before.
       m.closePopup();
-      clickedOpen=true;
+      m._clickedOpen=true;
       m.setPopupContent(buildBikeshopPopup(shop));
       m.openPopup();
     });
@@ -1910,6 +1917,52 @@ function legendHtml(){
     <div class="lrow"><span class="swatch" style="background:#163E82"></span>&gt;3000</div>`;
 }
 
+/* ══ shop search ("find a shop by name, jump to it on the map") ══ */
+// Searches bikeshopData (whatever's currently shown on the map — active layers, current
+// filters) rather than every loaded shop, since a match needs a real marker on the map to jump
+// to. A shop hidden by a layer being off or by an active filter chip won't show up here.
+function buildShopSearchResultsHtml(){
+  const q=shopSearchQuery.trim();
+  if(!q)return'';
+  const ql=q.toLowerCase();
+  const matches=[];
+  bikeshopData.forEach((shop,idx)=>{
+    if(shop.name&&shop.name.toLowerCase().includes(ql))matches.push({shop,idx});
+  });
+  if(matches.length===0){
+    return`<div style="font-size:11px;color:var(--soft);padding:8px 2px;">找不到符合「${esc(q)}」的店家 No shops match "${esc(q)}"</div>`;
+  }
+  const rows=matches.slice(0,50).map(({shop,idx})=>
+    `<div class="shop-search-row" data-idx="${idx}" style="display:flex;align-items:center;gap:8px;padding:6px 8px;cursor:pointer;border-bottom:1px solid var(--border);">
+      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${esc(shop._layerColor||'#888')};flex-shrink:0;"></span>
+      <span style="flex:1;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(shop.name)}">${esc(shop.name)}</span>
+      <span style="font-size:10px;color:var(--soft);flex-shrink:0;">${esc(shop.county||'—')}</span>
+    </div>`
+  ).join('');
+  return`<div class="shop-search-results" style="margin-top:4px;max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">${rows}</div>${matches.length>50?`<div style="font-size:10px;color:var(--soft);padding:4px 2px;">顯示前50筆，共${matches.length}筆符合 Showing first 50 of ${matches.length} matches</div>`:''}`;
+}
+function updateShopSearchResults(){
+  const el=document.getElementById('shopSearchResults');
+  if(!el)return;
+  el.innerHTML=buildShopSearchResultsHtml();
+  el.querySelectorAll('.shop-search-row').forEach(row=>{
+    row.addEventListener('click',()=>jumpToBikeshopByIndex(parseInt(row.dataset.idx,10)));
+  });
+}
+// Pans/zooms to the shop and opens its real marker popup in the same "full, editable" state a
+// direct click on the pin would — reuses the marker's own _clickedOpen flag (see
+// rebuildBikeshopMarkers) so hover/click behavior stays consistent afterward.
+function jumpToBikeshopByIndex(idx){
+  const shop=bikeshopData[idx];
+  const marker=bikeshopMarkerRefs[idx];
+  if(!shop||!marker)return;
+  map.setView([shop.lat,shop.lng],Math.max(map.getZoom(),16));
+  marker.closePopup();
+  marker._clickedOpen=true;
+  marker.setPopupContent(buildBikeshopPopup(shop));
+  marker.openPopup();
+}
+
 /* ══ shops tab ══ */
 function renderShopsTab(){
   const el=document.getElementById('tab-shops');
@@ -1933,6 +1986,14 @@ function renderShopsTab(){
       </div>${dbBtn}`
     :`<button class="btn btn-teal" id="addLayerBtn" style="width:100%;margin-bottom:8px;">＋ 新增位置資料集 Add location dataset</button>${dbBtn}`;
 
+  // Search box — finds a shop by name across whatever's currently shown on the map (active
+  // layers, respecting their current filters) and jumps to it on click. Restricted to shops
+  // that are actually rendered right now, since "jump to it" needs a real marker to open.
+  const searchHtml=csvLayers.length>0?`<div class="shop-search-wrap" style="margin-bottom:10px;">
+      <input type="text" id="shopSearchInput" class="btn" style="width:100%;text-align:left;font-weight:500;box-sizing:border-box;" placeholder="🔍 搜尋店名 Search shop name…" value="${esc(shopSearchQuery)}">
+      <div id="shopSearchResults">${buildShopSearchResultsHtml()}</div>
+    </div>`:'';
+
   let layersHtml='';
   const RATING_COLORS={'A':'#0E8F6B','B':'#E08E2C','C':'#E0584A','D':'#8B5CF6','E':'#798BA5'};
   csvLayers.forEach((layer,idx)=>{
@@ -1940,9 +2001,17 @@ function renderShopsTab(){
     ensureLayerFilterDefaults(layer);
     const visCount=layer.data.filter(s=>shopPassesLayerFilters(s,layer)).length;
     const kind=layer.kind||'sales';
-    // research/infrastructure datasets (GIANT/MERIDA/全國電子/YouBike) aren't sales pipelines —
-    // hide the status + sales-rep filter groups for them ("we don't need filters like 開發 etc")
-    const showStatusRep=kind==='sales';
+    // Status + priority are useful on any real shop dataset — a research layer's shops still
+    // have a real status (e.g. MERIDA's OEM dealers are already 已合作) and priority is just as
+    // meaningful for deciding who to visit first there — so those two now show for research
+    // layers too, not just 'sales'. Infrastructure layers (YouBike docks) are the one exception:
+    // their popup (buildBikeshopPopup) never shows status/priority at all for them (a dock isn't
+    // a sales prospect), so showing the filter chips would just be clutter with nothing to filter.
+    // The internal A–E tier and sales-rep assignment are genuinely sales-pipeline-only concepts
+    // (rep territory assignment doesn't apply to Merida's own dealer network etc.), so those stay
+    // restricted to kind==='sales'.
+    const showStatus=kind!=='infrastructure';
+    const showSalesRepAndTier=kind==='sales';
     const showRatingFilters=kind!=='infrastructure';
     const statChips=[...new Set(layer.data.map(s=>s.status))].map(st=>{
       const style=statusStyle(st);
@@ -2004,14 +2073,14 @@ function renderShopsTab(){
     // the list. layer._filtersOpen is in-memory UI state, not persisted.
     const priorityColorBtn=`<button class="btn layer-priority-color-btn" data-lid="${esc(layer.id)}" style="font-size:9px;padding:1px 6px;${layer.colorByPriority?'background:var(--accent-light);border-color:var(--accent);color:var(--accent);':''}">🎨 依優先順序著色 Color by priority</button>`;
     const filterGroups=[
-      showStatusRep?`${groupHeader('狀態 Status',layer.id,'statusFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${statChips}</div>`:'',
-      showStatusRep?`${groupHeader('優先順序 Priority',layer.id,'priorityFilters',priorityColorBtn)}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${priorityChips}</div>`:'',
-      (showStatusRep&&ratingGroups.length)?`${groupHeader('店家等級 Shop rating',layer.id,'ratingFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${ratingChips}</div>`:'',
+      showStatus?`${groupHeader('狀態 Status',layer.id,'statusFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${statChips}</div>`:'',
+      showStatus?`${groupHeader('優先順序 Priority',layer.id,'priorityFilters',priorityColorBtn)}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${priorityChips}</div>`:'',
+      (showSalesRepAndTier&&ratingGroups.length)?`${groupHeader('店家等級 Shop rating',layer.id,'ratingFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${ratingChips}</div>`:'',
       showRatingFilters?`${groupHeader('Google 評分 Google rating',layer.id,'gRatingBucketFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${gRatingChips}</div>`:'',
       showRatingFilters?`${groupHeader('Google 評論數 Review count',layer.id,'rCountBucketFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${rCountChips}</div>`:'',
       regions.length?`${groupHeader('地區 Region',layer.id,'regionFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${regionChips}</div>`:'',
       counties.length?`${groupHeader('縣市 County',layer.id,'countyFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${countyChips}</div>`:'',
-      (showStatusRep&&salesReps.length)?`${groupHeader('業務員 Sales rep',layer.id,'salesRepFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${salesRepChips}</div>`:'',
+      (showSalesRepAndTier&&salesReps.length)?`${groupHeader('業務員 Sales rep',layer.id,'salesRepFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${salesRepChips}</div>`:'',
       isMerida?`${groupHeader('美利達 OEM Merida OEM',layer.id,'meridaOemFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;">${meridaOemChips}</div>`:''
     ].filter(Boolean).join('');
     const filtersOpen=!!layer._filtersOpen;
@@ -2047,7 +2116,17 @@ function renderShopsTab(){
     tableHtml=`<div class="shop-table-wrap" style="margin-top:8px;"><table class="sh-table"><thead><tr><th>店名</th><th>資料集</th></tr></thead><tbody>${rows}</tbody></table>${bikeshopData.length>300?`<div style="font-size:10px;color:var(--soft);padding:5px 0">顯示前300筆，共${bikeshopData.length}筆</div>`:''}</div>`;
   }
 
-  el.innerHTML=uploadHtml+layersHtml+tableHtml;
+  el.innerHTML=uploadHtml+searchHtml+layersHtml+tableHtml;
+
+  if(csvLayers.length>0){
+    const searchInput=document.getElementById('shopSearchInput');
+    searchInput.addEventListener('input',()=>{
+      shopSearchQuery=searchInput.value;
+      // Only refresh the results list, not the whole tab — a full renderShopsTab() would
+      // replace this very input element and drop keyboard focus mid-keystroke.
+      updateShopSearchResults();
+    });
+  }
 
   if(csvLayers.length===0){
     document.getElementById('uploadZone').addEventListener('click',()=>document.getElementById('csvInput').click());
