@@ -11,6 +11,11 @@
 --   2. start_location defaults to the depot coordinates, overridable per plan.
 --   3. (No schema impact — "mark visited" opens the existing visits.html form.)
 --   4. (Not this migration — quota rollover lands with visit_quotas in a later phase.)
+--
+-- Every create policy below is preceded by drop policy if exists, so this whole script is safe
+-- to run more than once — needed because CREATE POLICY (unlike CREATE TABLE/INDEX) has no
+-- IF NOT EXISTS in Postgres, and a first attempt in dev hit a "policy already exists" error on a
+-- re-run before every statement had been confirmed to complete.
 
 create table if not exists public.visit_plans (
   id uuid primary key default gen_random_uuid(),
@@ -48,21 +53,25 @@ alter table public.visit_plan_stops enable row level security;
 -- the plan's own rep, or the single admin account already used for shop deletes/dataset deletes
 -- (shared/delete-policy.js's SHOP_DELETE_ALLOWED_EMAIL) — reused here rather than introducing a
 -- second admin concept.
+drop policy if exists "visit_plans_select" on public.visit_plans;
 create policy "visit_plans_select" on public.visit_plans
   for select using (auth.role() = 'authenticated');
 
+drop policy if exists "visit_plans_insert" on public.visit_plans;
 create policy "visit_plans_insert" on public.visit_plans
   for insert with check (
     rep_id = auth.uid()
     or (auth.jwt() ->> 'email') = 'kamil.wysocki@datalake-tech.com'
   );
 
+drop policy if exists "visit_plans_update" on public.visit_plans;
 create policy "visit_plans_update" on public.visit_plans
   for update using (
     rep_id = auth.uid()
     or (auth.jwt() ->> 'email') = 'kamil.wysocki@datalake-tech.com'
   );
 
+drop policy if exists "visit_plans_delete" on public.visit_plans;
 create policy "visit_plans_delete" on public.visit_plans
   for delete using (
     rep_id = auth.uid()
@@ -72,9 +81,11 @@ create policy "visit_plans_delete" on public.visit_plans
 -- Stops inherit their parent plan's ownership rather than having their own rep_id — a stop's
 -- writability is entirely "can I write to the plan it belongs to". select is open, same reasoning
 -- as visit_plans_select.
+drop policy if exists "visit_plan_stops_select" on public.visit_plan_stops;
 create policy "visit_plan_stops_select" on public.visit_plan_stops
   for select using (auth.role() = 'authenticated');
 
+drop policy if exists "visit_plan_stops_insert" on public.visit_plan_stops;
 create policy "visit_plan_stops_insert" on public.visit_plan_stops
   for insert with check (
     exists (
@@ -84,6 +95,7 @@ create policy "visit_plan_stops_insert" on public.visit_plan_stops
     )
   );
 
+drop policy if exists "visit_plan_stops_update" on public.visit_plan_stops;
 create policy "visit_plan_stops_update" on public.visit_plan_stops
   for update using (
     exists (
@@ -93,6 +105,7 @@ create policy "visit_plan_stops_update" on public.visit_plan_stops
     )
   );
 
+drop policy if exists "visit_plan_stops_delete" on public.visit_plan_stops;
 create policy "visit_plan_stops_delete" on public.visit_plan_stops
   for delete using (
     exists (
