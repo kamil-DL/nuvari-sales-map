@@ -2693,22 +2693,24 @@ function loadSession(){
         // salesRepFilters as stale "{}" objects (Set serialized wrong), which would throw if
         // passed straight into `new Set(...)` (not iterable).
         // ratingFilters/regionFilters/countyFilters/salesRepFilters/gRatingBucketFilters/
-        // rCountBucketFilters/meridaOemFilters/campaignFilters all used to mean "empty = show
-        // everything" — a session saved before today's rewrite (or one where any of those was
-        // ever cleared) can have a genuinely empty persisted array for one of them. Under the
-        // new strict-checkbox semantics that same empty Set now means "show nothing," so
-        // restoring it literally would silently blank the whole map for anyone with old saved
-        // state. restoreOrDefault leaves the field unset when the persisted array is missing/
-        // empty, so ensureLayerFilterDefaults (called via rebuildBikeshopDataFromLayers below)
-        // fills it in fresh as "everything selected" — exactly what a newly-loaded layer gets.
-        // statusFilters/priorityFilters are excluded from this treatment: their meaning never
-        // changed (empty has always meant "show nothing" for both), so an old empty array there
-        // still means what it always meant.
+        // rCountBucketFilters/meridaOemFilters/campaignFilters/statusFilters/priorityFilters can
+        // all end up as a genuinely empty persisted array — either from a session saved before
+        // today's rewrite, or simply from someone clicking "清除 None" once and the session
+        // autosaving right after. Under strict-checkbox semantics an empty Set means "show
+        // nothing," and unlike an in-session click (which is a deliberate, visible choice), a
+        // *restored* empty Set is indistinguishable from "the whole map is broken" — nobody
+        // reloading the page wants to land on a blank map, so every field gets the same
+        // restoreOrDefault treatment: leave it unset when the persisted array is missing/empty,
+        // so ensureLayerFilterDefaults (called via rebuildBikeshopDataFromLayers below) fills it
+        // in fresh as "everything selected" — exactly what a newly-loaded layer gets. (This
+        // previously excluded statusFilters/priorityFilters specifically, which is what let a
+        // single "清除 None" on Status silently and permanently zero out the whole map on every
+        // future load — see the "Merida shops missing" report this fixed.)
         const restoreOrDefault=arr=>Array.isArray(arr)&&arr.length>0?new Set(arr):undefined;
         csvLayers=b.layers.map(l=>{
           const layer={...l,
-            statusFilters:new Set(Array.isArray(l.statusFilters)?l.statusFilters:[]),
-            priorityFilters:new Set(Array.isArray(l.priorityFilters)?l.priorityFilters:PRIORITY_ORDER.map(p=>p.key)),
+            statusFilters:restoreOrDefault(l.statusFilters),
+            priorityFilters:restoreOrDefault(l.priorityFilters),
             ratingFilters:restoreOrDefault(l.ratingFilters),
             regionFilters:restoreOrDefault(l.regionFilters),
             countyFilters:restoreOrDefault(l.countyFilters),
