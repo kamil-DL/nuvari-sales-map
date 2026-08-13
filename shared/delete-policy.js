@@ -13,3 +13,11 @@ export const SHOP_DELETE_ALLOWED_EMAIL = 'kamil.wysocki@datalake-tech.com';
 export function canDeleteShops(email) {
   return email === SHOP_DELETE_ALLOWED_EMAIL;
 }
+
+// Same single-admin gate, reused for the Visit Planner: assigning a day plan to a rep other than
+// yourself, or editing/deleting someone else's plan. Kept as its own named export (rather than
+// callers reusing canDeleteShops directly) so the two concerns can diverge later without a
+// rename — see supabase/migrations/0013_add_visit_plans.sql, which enforces the matching RLS.
+export function canAssignToOthers(email) {
+  return email === SHOP_DELETE_ALLOWED_EMAIL;
+}

@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>每日行程規劃 Day Plans — NST</title>
+<link rel="stylesheet" href="css/nst-shared.css"/>
+</head>
+<body>
+
+<div id="app" style="display:none">
+  <header class="nst-header">
+    <div class="nst-header-left">
+      <a href="../index.html"><img id="logo" class="nst-header-logo" alt="Nuvari"/></a>
+      <span class="nst-header-title">每日行程規劃 Day Plans</span>
+    </div>
+    <div class="nst-header-right">
+      <span id="user-email" class="nst-user-email"></span>
+      <a href="../index.html" class="nst-btn nst-btn-ghost nst-btn-sm">← Dashboard</a>
+      <button id="sign-out-btn" class="nst-btn nst-btn-ghost nst-btn-sm">登出 Sign out</button>
+    </div>
+  </header>
+
+  <nav class="nst-nav">
+    <a href="index.html">首頁 Home</a>
+    <a href="shops.html">店家資料庫 Shops</a>
+    <a href="visits.html">拜訪計劃 Visits</a>
+    <a href="planner.html" class="active">🗺️ 每日行程 Day Plans</a>
+  </nav>
+
+  <div class="nst-page">
+    <div class="nst-page-heading">
+      <div>
+        <h1>每日行程規劃 Day Plans</h1>
+        <div class="sub">建立每日拜訪順序、自動產生路線 Build a day's visit order and auto-generate a route</div>
+      </div>
+      <button id="add-plan-btn" class="nst-btn nst-btn-primary">＋ 新增計劃 New day plan</button>
+    </div>
+
+    <div class="nst-filter-bar">
+      <select id="rep-filter" class="nst-select" style="width:auto;min-width:180px">
+        <option value="mine">我的計劃 My plans</option>
+        <option value="all">所有業務 All reps</option>
+      </select>
+      <select id="campaign-filter" class="nst-select" style="width:auto;min-width:160px">
+        <option value="all">所有活動 All campaigns</option>
+      </select>
+      <input id="date-from" type="date" class="nst-input" style="width:auto" title="From date 起始日期"/>
+      <input id="date-to" type="date" class="nst-input" style="width:auto" title="To date 結束日期"/>
+      <button id="clear-dates" class="nst-btn nst-btn-ghost nst-btn-sm">清除日期 Clear</button>
+    </div>
+
+    <div id="error-banner" class="nst-error-banner" style="display:none"></div>
+    <div id="plans-list">
+      <div class="nst-loading"><div class="nst-spinner"></div>載入中 Loading…</div>
+    </div>
+  </div>
+</div>
+
+<!-- New plan modal -->
+<div id="plan-modal" class="nst-modal-backdrop" style="display:none">
+  <div class="nst-modal">
+    <div class="nst-modal-header">
+      <h3>新增每日計劃 New Day Plan</h3>
+      <button class="nst-modal-close" id="modal-close-btn">✕</button>
+    </div>
+    <div class="nst-modal-body">
+      <label class="nst-field-label">日期 Date *</label>
+      <input id="pf-date" type="date" class="nst-input"/>
+
+      <label class="nst-field-label">活動 Campaign (optional)</label>
+      <select id="pf-campaign" class="nst-select">
+        <option value="">— 不指定 None —</option>
+      </select>
+
+      <label class="nst-field-label">業務代表 Sales rep</label>
+      <div style="font-size:13px;color:var(--nst-gray);padding:8px 0" id="plan-rep-display"></div>
+
+      <div id="modal-error" class="nst-auth-error" style="margin-top:10px"></div>
+    </div>
+    <div class="nst-modal-footer">
+      <button id="modal-cancel-btn" class="nst-btn nst-btn-ghost">取消 Cancel</button>
+      <button id="modal-save-btn" class="nst-btn nst-btn-primary">建立 Create</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { requireAuth, signOut } from './js/auth.js';
+import { LOGO } from './js/logo.js';
+import { loadPlans, createPlan, PLAN_STATUS_LABELS } from './js/planner.js';
+import { loadUserDirectory, repLabel, loadCampaigns } from './js/shops.js';
+
+document.getElementById('logo').src = LOGO;
+
+const user = await requireAuth();
+document.getElementById('app').style.display = '';
+document.getElementById('user-email').textContent = user.email;
+document.getElementById('sign-out-btn').addEventListener('click', signOut);
+document.getElementById('plan-rep-display').textContent = `${user.email} (你 / you)`;
+
+function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmtDate(d) {
+  if (!d) return '—';
+  return new Date(d + 'T00:00:00').toLocaleDateString('zh-TW', { year:'numeric', month:'2-digit', day:'2-digit', weekday:'short' });
+}
+function planStatusBadge(s) {
+  const info = PLAN_STATUS_LABELS[s] || { zh: s, en: s, color: 'badge-gray' };
+  return `<span class="nst-badge ${info.color}">${info.zh} ${info.en}</span>`;
+}
+
+// rep_id -> email, for showing whose plan a card belongs to when viewing "All reps".
+let repsById = {};
+let campaigns = [];
+try {
+  const [dir, camps] = await Promise.all([loadUserDirectory(), loadCampaigns()]);
+  dir.forEach(u => { repsById[u.id] = u.email; });
+  campaigns = camps;
+  const campaignOpts = campaigns.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  document.getElementById('campaign-filter').insertAdjacentHTML('beforeend', campaignOpts);
+  document.getElementById('pf-campaign').insertAdjacentHTML('beforeend', campaignOpts);
+} catch (e) {
+  // Non-fatal — plans list still works without rep names / campaign filter options.
+}
+
+function renderPlans(plans) {
+  const list = document.getElementById('plans-list');
+  if (!plans.length) {
+    list.innerHTML = `<div class="nst-empty">
+      <div class="nst-empty-icon">🗺️</div>
+      <p>尚無每日計劃 No day plans yet</p>
+      <div class="sub">按「新增計劃」建立第一個每日行程 Click "New day plan" to get started</div>
+    </div>`;
+    return;
+  }
+  list.innerHTML = plans.map(p => {
+    const stopCount = p.visit_plan_stops?.length ?? 0;
+    const isMine = p.rep_id === user.id;
+    const campaign = campaigns.find(c => c.id === p.campaign_id);
+    return `<a class="nst-card nst-card-link" href="plan-detail.html?id=${p.id}">
+      <div class="nst-card-header">
+        <span class="nst-card-name">${fmtDate(p.plan_date)}</span>
+        ${planStatusBadge(p.status)}
+        ${!isMine ? `<span class="nst-badge badge-gray" style="font-size:10px">${esc(repLabel(repsById[p.rep_id]) || '其他業務')}</span>` : ''}
+      </div>
+      <div class="nst-card-meta">
+        📍 ${stopCount} 站 stops
+        ${campaign ? ` · 🎯 ${esc(campaign.name)}` : ''}
+        ${isMine ? ' · 你的計劃 Your plan' : ' · 唯讀 Read-only'}
+      </div>
+      ${p.notes ? `<div class="nst-card-meta" style="margin-top:3px">${esc(p.notes.slice(0,100))}${p.notes.length>100?'…':''}</div>` : ''}
+    </a>`;
+  }).join('');
+}
+
+async function refresh() {
+  const repFilter = document.getElementById('rep-filter').value;
+  const campaignId = document.getElementById('campaign-filter').value;
+  const dateFrom = document.getElementById('date-from').value || undefined;
+  const dateTo = document.getElementById('date-to').value || undefined;
+  const repId = repFilter === 'mine' ? user.id : undefined;
+  try {
+    const plans = await loadPlans({ repId, dateFrom, dateTo, campaignId });
+    renderPlans(plans);
+  } catch (e) {
+    document.getElementById('error-banner').textContent = e.message;
+    document.getElementById('error-banner').style.display = '';
+  }
+}
+
+document.getElementById('rep-filter').addEventListener('change', refresh);
+document.getElementById('campaign-filter').addEventListener('change', refresh);
+document.getElementById('date-from').addEventListener('change', refresh);
+document.getElementById('date-to').addEventListener('change', refresh);
+document.getElementById('clear-dates').addEventListener('click', () => {
+  document.getElementById('date-from').value = '';
+  document.getElementById('date-to').value = '';
+  refresh();
+});
+
+// New plan modal
+function openModal() {
+  document.getElementById('pf-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('pf-campaign').value = '';
+  document.getElementById('modal-error').textContent = '';
+  document.getElementById('plan-modal').style.display = '';
+}
+function closeModal() { document.getElementById('plan-modal').style.display = 'none'; }
+
+document.getElementById('add-plan-btn').addEventListener('click', openModal);
+document.getElementById('modal-close-btn').addEventListener('click', closeModal);
+document.getElementById('modal-cancel-btn').addEventListener('click', closeModal);
+document.getElementById('plan-modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+
+document.getElementById('modal-save-btn').addEventListener('click', async () => {
+  const date = document.getElementById('pf-date').value;
+  const campaignId = document.getElementById('pf-campaign').value || null;
+  const errEl = document.getElementById('modal-error');
+  if (!date) { errEl.textContent = '請選擇日期 Please select a date'; return; }
+  const btn = document.getElementById('modal-save-btn');
+  btn.disabled = true; btn.textContent = '建立中…';
+  try {
+    const plan = await createPlan({ rep_id: user.id, plan_date: date, campaign_id: campaignId }, user.id);
+    closeModal();
+    location.href = `plan-detail.html?id=${plan.id}`;
+  } catch (e) {
+    errEl.textContent = e.message;
+    btn.disabled = false; btn.textContent = '建立 Create';
+  }
+});
+
+await refresh();
+</script>
+</body>
+</html>
