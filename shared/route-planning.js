@@ -45,6 +45,31 @@ export function nearestNeighborChain(points) {
   return chain;
 }
 
+// Greedy nearest-neighbor ordering anchored to a fixed starting point (e.g. a day plan's
+// start_location/depot) — more accurate than nearestNeighborChain's northernmost-first heuristic
+// whenever a real origin is known, since the first hop is genuinely "closest to where the day
+// actually begins" rather than an arbitrary compass-direction guess.
+export function nearestNeighborFromStart(start, points) {
+  if (!points.length) return [];
+  const remaining = [...points];
+  const chain = [];
+  let current = start;
+  while (remaining.length) {
+    let bestIdx = 0;
+    let bestDist = Infinity;
+    remaining.forEach((p, i) => {
+      const d = haversineKm(current, p);
+      if (d < bestDist) {
+        bestDist = d;
+        bestIdx = i;
+      }
+    });
+    current = remaining.splice(bestIdx, 1)[0];
+    chain.push(current);
+  }
+  return chain;
+}
+
 // A single stop's Google Maps "waypoint" param — prefers exact lat,lng over an address (which
 // Google geocodes at request time, less reliable for shops with a sparse/generic address).
 function pointParam(p) {

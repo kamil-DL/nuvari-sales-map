@@ -108,27 +108,33 @@
         </div>
       </div>
 
+      <!-- Stops -->
+      <div class="nst-detail-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <h2 style="margin:0">拜訪順序 Stops</h2>
+          <button id="auto-order-btn" class="nst-btn nst-btn-outline nst-btn-sm" style="display:none">🔀 自動排序最佳路線 Auto-order route</button>
+        </div>
+
+        <div id="add-shop-wrap" style="display:none;margin:12px 0 16px">
+          <label class="nst-field-label">新增店家 Add a shop</label>
+          <input id="shop-search" type="text" class="nst-input" placeholder="搜尋店家名稱 Search shop name…"/>
+          <div id="shop-results" style="margin-top:6px;max-height:220px;overflow-y:auto;border:1px solid var(--nst-border);border-radius:9px;display:none"></div>
+        </div>
+
+        <div id="stops-list"></div>
+      </div>
+
       <!-- Route -->
       <div class="nst-detail-card">
         <h2>路線 Route</h2>
         <div id="route-empty" style="font-size:13px;color:var(--nst-gray)">新增至少一個店家以產生路線 Add at least one shop to generate a route</div>
         <a id="route-link" href="#" target="_blank" rel="noopener" class="nst-btn nst-btn-primary" style="display:none">🗺️ 開啟 Google 地圖路線 Open Google Maps route</a>
       </div>
-
-      <!-- Stops -->
-      <div class="nst-detail-card">
-        <h2>拜訪順序 Stops</h2>
-        <div id="stops-list"></div>
-
-        <div id="add-shop-wrap" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--nst-border)">
-          <label class="nst-field-label">新增店家 Add a shop</label>
-          <input id="shop-search" type="text" class="nst-input" placeholder="搜尋店家名稱 Search shop name…"/>
-          <div id="shop-results" style="margin-top:6px;max-height:220px;overflow-y:auto;border:1px solid var(--nst-border);border-radius:9px;display:none"></div>
-        </div>
-      </div>
     </div>
   </div>
 </div>
+
+<div id="save-toast" style="display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--nst-ink,#1D2420);color:#fff;font-size:12.5px;font-weight:600;padding:8px 16px;border-radius:999px;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:9999">✓ 已自動儲存 Auto-saved</div>
 
 <script type="module">
 import { requireAuth, signOut } from './js/auth.js';
@@ -137,7 +143,7 @@ import { getPlan, updatePlan, deletePlan, addStop, removeStop, reorderStops, PLA
 import { addVisit } from './js/visits.js';
 import { loadShops, loadUserDirectory, repLabel, loadCampaigns, STATUS_LABELS, PRIORITY_LABELS } from './js/shops.js';
 import { canAssignToOthers } from '../shared/delete-policy.js';
-import { buildRouteUrl, shopMapsUrl } from '../shared/route-planning.js';
+import { buildRouteUrl, shopMapsUrl, nearestNeighborFromStart, parseStartLocation } from '../shared/route-planning.js';
 
 document.getElementById('logo').src = LOGO;
 
@@ -172,6 +178,16 @@ function priorityBadge(p) {
   if (!p) return '';
   const info = PRIORITY_LABELS[p];
   return info ? `<span class="nst-badge ${info.color}" style="font-size:10px">${info.zh}</span>` : '';
+}
+
+// Every stop/status/notes/location edit below saves immediately — there's no separate "Save"
+// button and no draft state to lose. This toast is the visible confirmation that it happened.
+let toastTimer;
+function showSavedToast() {
+  const toast = document.getElementById('save-toast');
+  clearTimeout(toastTimer);
+  toast.style.display = '';
+  toastTimer = setTimeout(() => { toast.style.display = 'none'; }, 1600);
 }
 
 try {
@@ -231,6 +247,8 @@ function renderStops() {
     }).join('');
   }
   document.getElementById('add-shop-wrap').style.display = editable ? '' : 'none';
+  const geocodedCount = stops.filter(s => s.shops && s.shops.lat != null && s.shops.lng != null).length;
+  document.getElementById('auto-order-btn').style.display = (editable && geocodedCount >= 2) ? '' : 'none';
   renderRoute();
 }
 
@@ -281,7 +299,7 @@ await load();
 document.querySelectorAll('.status-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     btn.disabled = true;
-    try { plan = await updatePlan(planId, { status: btn.dataset.status }); render(); }
+    try { plan = await updatePlan(planId, { status: btn.dataset.status }); render(); showSavedToast(); }
     catch (e) { document.getElementById('error-banner').textContent = e.message; document.getElementById('error-banner').style.display = ''; btn.disabled = false; }
   });
 });
@@ -291,7 +309,7 @@ document.getElementById('save-start-btn').addEventListener('click', async () => 
   const btn = document.getElementById('save-start-btn');
   const val = document.getElementById('f-start-location').value.trim();
   btn.disabled = true; btn.textContent = '儲存中…';
-  try { plan = await updatePlan(planId, { start_location: val }); renderRoute(); }
+  try { plan = await updatePlan(planId, { start_location: val }); renderRoute(); showSavedToast(); }
   catch (e) { document.getElementById('error-banner').textContent = e.message; document.getElementById('error-banner').style.display = ''; }
   finally { btn.disabled = false; btn.textContent = '儲存 Save'; }
 });
@@ -315,6 +333,7 @@ document.getElementById('notes-save-btn').addEventListener('click', async () => 
     document.getElementById('notes-view').style.display = '';
     document.getElementById('notes-edit').style.display = 'none';
     render();
+    showSavedToast();
   } catch (e) { document.getElementById('error-banner').textContent = e.message; document.getElementById('error-banner').style.display = ''; }
   finally { btn.disabled = false; btn.textContent = '儲存 Save'; }
 });
@@ -339,17 +358,18 @@ document.getElementById('stops-list').addEventListener('click', async e => {
   if (e.target.classList.contains('move-up-btn') && idx > 0) {
     [stops[idx - 1], stops[idx]] = [stops[idx], stops[idx - 1]];
     renderStops();
-    try { await reorderStops(stops.map(s => s.id)); } catch (err) { document.getElementById('error-banner').textContent = err.message; document.getElementById('error-banner').style.display = ''; }
+    try { await reorderStops(stops.map(s => s.id)); showSavedToast(); } catch (err) { document.getElementById('error-banner').textContent = err.message; document.getElementById('error-banner').style.display = ''; }
   } else if (e.target.classList.contains('move-down-btn') && idx < stops.length - 1) {
     [stops[idx], stops[idx + 1]] = [stops[idx + 1], stops[idx]];
     renderStops();
-    try { await reorderStops(stops.map(s => s.id)); } catch (err) { document.getElementById('error-banner').textContent = err.message; document.getElementById('error-banner').style.display = ''; }
+    try { await reorderStops(stops.map(s => s.id)); showSavedToast(); } catch (err) { document.getElementById('error-banner').textContent = err.message; document.getElementById('error-banner').style.display = ''; }
   } else if (e.target.classList.contains('remove-stop-btn')) {
     e.target.disabled = true;
     try {
       await removeStop(stopId);
       plan.visit_plan_stops = stops.filter(s => s.id !== stopId);
       renderStops();
+      showSavedToast();
     } catch (err) { document.getElementById('error-banner').textContent = err.message; document.getElementById('error-banner').style.display = ''; e.target.disabled = false; }
   } else if (e.target.classList.contains('mark-visited-btn')) {
     // Decision 3 (plan artifact): marking a stop "visited" always opens the full visit
@@ -410,9 +430,37 @@ document.getElementById('shop-results').addEventListener('click', async e => {
     document.getElementById('shop-search').value = '';
     document.getElementById('shop-results').style.display = 'none';
     renderStops();
+    showSavedToast();
   } catch (err) {
     document.getElementById('error-banner').textContent = err.message;
     document.getElementById('error-banner').style.display = '';
+  }
+});
+
+// Auto-order: nearest-neighbor route anchored to the plan's start location. Stops without
+// coordinates (lat/lng never geocoded) can't be placed by distance, so they're left in place at
+// the end, after every geocoded stop has been ordered.
+document.getElementById('auto-order-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('auto-order-btn');
+  const stops = plan.visit_plan_stops;
+  const geocoded = stops.filter(s => s.shops && s.shops.lat != null && s.shops.lng != null);
+  const ungeocoded = stops.filter(s => !(s.shops && s.shops.lat != null && s.shops.lng != null));
+  if (geocoded.length < 2) return;
+
+  const start = parseStartLocation(plan.start_location) || { lat: geocoded[0].shops.lat, lng: geocoded[0].shops.lng };
+  btn.disabled = true; btn.textContent = '排序中…';
+  try {
+    const orderedShops = nearestNeighborFromStart(start, geocoded.map(s => s.shops));
+    const orderedStops = orderedShops.map(shop => geocoded.find(s => s.shops.id === shop.id));
+    plan.visit_plan_stops = [...orderedStops, ...ungeocoded];
+    renderStops();
+    await reorderStops(plan.visit_plan_stops.map(s => s.id));
+    showSavedToast();
+  } catch (err) {
+    document.getElementById('error-banner').textContent = err.message;
+    document.getElementById('error-banner').style.display = '';
+  } finally {
+    btn.disabled = false; btn.textContent = '🔀 自動排序最佳路線 Auto-order route';
   }
 });
 </script>
