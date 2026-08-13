@@ -104,10 +104,12 @@ export function shopMapsUrl(shop) {
   return null;
 }
 
-// Depot default for a new plan's start_location — see supabase/migrations/0013_add_visit_plans.sql,
-// which sets the identical value as the column default. Kept in sync manually (same convention as
-// shared/delete-policy.js's admin email being duplicated into map.html's classic script).
+// Depot default for a new plan's start_location — 數據科技 (Datalake Tech)'s office. See
+// supabase/migrations/0013_add_visit_plans.sql, which sets the identical value as the column
+// default. Kept in sync manually (same convention as shared/delete-policy.js's admin email being
+// duplicated into map.html's classic script).
 export const DEFAULT_START_LOCATION = '24.13315821890205,120.62641783465286';
+export const DEFAULT_START_LOCATION_LABEL = '數據科技辦公室 Datalake Tech Office';
 
 // Parses a start_location string back into {lat,lng} for distance math, if it's in "lat,lng"
 // form; returns null for a freeform address (those can only be used as a route origin string,

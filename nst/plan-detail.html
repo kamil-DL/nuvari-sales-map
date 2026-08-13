@@ -82,9 +82,11 @@
 
         <div id="start-location-edit" style="display:none;margin-top:16px;padding-top:14px;border-top:1px solid var(--nst-border)">
           <label class="nst-field-label">起始位置 Start location (lat,lng or address)</label>
+          <div id="start-location-label" style="font-size:12.5px;color:var(--nst-accent-dark);font-weight:600;margin-bottom:6px;display:none">📍</div>
           <div style="display:flex;gap:8px">
             <input id="f-start-location" type="text" class="nst-input"/>
             <button id="save-start-btn" class="nst-btn nst-btn-outline nst-btn-sm">儲存 Save</button>
+            <button id="reset-start-btn" class="nst-btn nst-btn-ghost nst-btn-sm" style="display:none">重設為辦公室 Reset to office</button>
           </div>
         </div>
 
@@ -143,9 +145,10 @@ import { getPlan, updatePlan, deletePlan, addStop, removeStop, reorderStops, PLA
 import { addVisit } from './js/visits.js';
 import { loadShops, loadUserDirectory, repLabel, loadCampaigns, STATUS_LABELS, PRIORITY_LABELS } from './js/shops.js';
 import { canAssignToOthers } from '../shared/delete-policy.js';
-import { buildRouteUrl, shopMapsUrl, nearestNeighborFromStart, parseStartLocation } from '../shared/route-planning.js';
+import { buildRouteUrl, shopMapsUrl, nearestNeighborFromStart, parseStartLocation, DEFAULT_START_LOCATION, DEFAULT_START_LOCATION_LABEL } from '../shared/route-planning.js';
 
 document.getElementById('logo').src = LOGO;
+document.getElementById('start-location-label').textContent = `📍 ${DEFAULT_START_LOCATION_LABEL}`;
 
 const user = await requireAuth();
 document.getElementById('app').style.display = '';
@@ -188,6 +191,15 @@ function showSavedToast() {
   clearTimeout(toastTimer);
   toast.style.display = '';
   toastTimer = setTimeout(() => { toast.style.display = 'none'; }, 1600);
+}
+
+// The start_location field stores raw "lat,lng" (or a freeform address) — this just labels it in
+// plain language when it's the untouched depot default, and offers a one-click way back to it.
+function updateStartLocationLabel() {
+  const val = document.getElementById('f-start-location').value.trim();
+  const isDefault = val === DEFAULT_START_LOCATION;
+  document.getElementById('start-location-label').style.display = isDefault ? '' : 'none';
+  document.getElementById('reset-start-btn').style.display = isDefault ? 'none' : '';
 }
 
 try {
@@ -274,6 +286,7 @@ function render() {
     document.getElementById('status-actions').style.display = '';
     document.getElementById('start-location-edit').style.display = '';
     document.getElementById('f-start-location').value = plan.start_location || '';
+    updateStartLocationLabel();
     document.getElementById('edit-notes-btn').style.display = '';
     document.getElementById('delete-plan-wrap').style.display = '';
   }
@@ -305,13 +318,28 @@ document.querySelectorAll('.status-btn').forEach(btn => {
 });
 
 // Start location
+document.getElementById('f-start-location').addEventListener('input', updateStartLocationLabel);
+
 document.getElementById('save-start-btn').addEventListener('click', async () => {
   const btn = document.getElementById('save-start-btn');
   const val = document.getElementById('f-start-location').value.trim();
   btn.disabled = true; btn.textContent = '儲存中…';
-  try { plan = await updatePlan(planId, { start_location: val }); renderRoute(); showSavedToast(); }
+  try { plan = await updatePlan(planId, { start_location: val }); renderRoute(); updateStartLocationLabel(); showSavedToast(); }
   catch (e) { document.getElementById('error-banner').textContent = e.message; document.getElementById('error-banner').style.display = ''; }
   finally { btn.disabled = false; btn.textContent = '儲存 Save'; }
+});
+
+document.getElementById('reset-start-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('reset-start-btn');
+  btn.disabled = true;
+  try {
+    plan = await updatePlan(planId, { start_location: DEFAULT_START_LOCATION });
+    document.getElementById('f-start-location').value = DEFAULT_START_LOCATION;
+    updateStartLocationLabel();
+    renderRoute();
+    showSavedToast();
+  } catch (e) { document.getElementById('error-banner').textContent = e.message; document.getElementById('error-banner').style.display = ''; }
+  finally { btn.disabled = false; }
 });
 
 // Notes
