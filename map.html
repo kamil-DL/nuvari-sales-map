@@ -130,6 +130,17 @@ tr.row-selected:hover{background:#FFEDC2!important;}
 .sf-chip.active .sf-dot{background:var(--dot-color,var(--soft));}
 .sf-chip .sf-count{font-size:9.5px;background:var(--bg);border-radius:10px;padding:0 5px;}
 .sf-chip.active .sf-count{background:var(--accent-light);}
+.shops-tab-section{padding-bottom:16px;margin-bottom:16px;border-bottom:1px solid var(--border);}
+.shops-tab-label{font-size:10px;font-weight:700;letter-spacing:.03em;color:var(--soft);text-transform:uppercase;margin-bottom:10px;}
+.layer-filters-panel{padding-top:6px;}
+.filter-section{border-top:1px solid var(--border);padding:9px 0;}
+.filter-section:first-child{border-top:none;padding-top:2px;}
+.filter-section-header{display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;user-select:none;}
+.filter-section-label{font-size:10.5px;font-weight:700;color:var(--soft);display:flex;align-items:center;gap:6px;}
+.filter-section-header:hover .filter-section-label{color:var(--ink);}
+.filter-section-chevron{font-size:8px;color:var(--soft);width:9px;flex-shrink:0;}
+.filter-section-summary{font-size:9.5px;font-weight:600;color:var(--soft);flex-shrink:0;}
+.filter-section-body{margin-top:8px;}
 .shop-table-wrap{overflow-x:auto;}
 table.sh-table{width:100%;border-collapse:collapse;font-size:10.5px;}
 table.sh-table th{text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.02em;color:var(--soft);padding:4px 6px;border-bottom:1px solid var(--border);}
@@ -731,11 +742,30 @@ function allKeysForField(layer,field){
     default:return[];
   }
 }
-function groupHeader(label,layerId,field,extraBtnHtml){
-  // extraBtnHtml (the priority group's "color by priority" toggle) gets its own row below the
-  // label — cramming it into the same line as the label + All/None buttons made the label text
-  // wrap mid-word in the sidebar's narrow width.
-  return`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;"><span style="font-size:9px;color:var(--soft);">${label}</span><span style="display:flex;gap:4px;flex-shrink:0;"><button class="btn sf-all-btn" data-lid="${esc(layerId)}" data-field="${field}" style="font-size:9px;padding:1px 6px;">全選 All</button><button class="btn sf-none-btn" data-lid="${esc(layerId)}" data-field="${field}" style="font-size:9px;padding:1px 6px;">清除 None</button></span></div>${extraBtnHtml?`<div style="margin-bottom:4px;">${extraBtnHtml}</div>`:''}`;
+// A whole layer's filter panel used to render every group (狀態/優先順序/評分/地區/縣市/...)
+// fully expanded at once — with 8-9 groups per layer that's a wall of chips even before you've
+// decided which ones you care about. Each group is now its own collapsible accordion section:
+// closed by default (just a header + a "3/9 已選" summary), except 狀態 which stays open since
+// it's the one almost everyone touches first. layer._openGroups is in-memory UI state (like
+// _filtersOpen), not persisted — every layer just reopens with only Status expanded next session.
+function filterSection(layer,label,field,chipsHtml,activeCount,totalCount,extraBtnHtml){
+  if(!layer._openGroups)layer._openGroups=new Set(['statusFilters']);
+  const isOpen=layer._openGroups.has(field);
+  const summary=activeCount===totalCount?`全部 ${totalCount}`:`${activeCount}/${totalCount} 已選`;
+  return`<div class="filter-section">
+    <div class="filter-section-header" data-lid="${esc(layer.id)}" data-field="${field}">
+      <span class="filter-section-label"><span class="filter-section-chevron">${isOpen?'▾':'▸'}</span>${label}</span>
+      <span class="filter-section-summary">${summary}</span>
+    </div>
+    ${isOpen?`<div class="filter-section-body">
+      <div style="display:flex;justify-content:flex-end;gap:5px;margin-bottom:7px;">
+        <button class="btn sf-all-btn" data-lid="${esc(layer.id)}" data-field="${field}" style="font-size:9px;padding:2px 7px;">全選</button>
+        <button class="btn sf-none-btn" data-lid="${esc(layer.id)}" data-field="${field}" style="font-size:9px;padding:2px 7px;">清除</button>
+      </div>
+      ${extraBtnHtml?`<div style="margin-bottom:7px;">${extraBtnHtml}</div>`:''}
+      <div style="display:flex;flex-wrap:wrap;gap:5px;">${chipsHtml}</div>
+    </div>`:''}
+  </div>`;
 }
 /* single source of truth for "does this shop pass the layer's active filters" — used by the
    map/list display AND the per-dataset export button, so exporting always matches what's shown.
@@ -2042,34 +2072,35 @@ function renderShopsTab(){
   // only working after picking something else first. The placeholder makes every real choice,
   // including "All shops", a genuine change event.
   const dbPicker=shopDbPickerOpen?`<select id="shopDbDatasetSelect" class="btn" style="width:100%;margin-bottom:8px;">
-      <option value="__placeholder__" selected disabled>請選擇資料集... Select a dataset…</option>
-      <option value="all">全部店家 All shops</option>
-      <option value="unassigned">未分類 Unassigned</option>
+      <option value="__placeholder__" selected disabled>請選擇資料集...</option>
+      <option value="all">全部店家</option>
+      <option value="unassigned">未分類</option>
       ${datasetOptionsHtml}
     </select>`:'';
   // "Add location dataset" (CSV upload) is a rarely-used action next to "Load from Shop DB" (used
   // constantly) — demoted to a small icon-only button rather than matching it in size/prominence.
-  const addLayerIconBtn=`<button class="btn icon-btn" id="addLayerBtn" title="新增位置資料集 Add location dataset (CSV)">＋</button>`;
-  const loadDbBtn=`<button class="btn" id="loadDbBtn" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;background:#EEF6FD;border-color:#137ECE;color:#002850;font-weight:700;">📊 從 Shop DB 載入 Load from Shop DB</button>`;
-  const dbToolbar=`<div style="display:flex;gap:6px;margin-bottom:${shopDbPickerOpen?'6px':'8px'};">${addLayerIconBtn}${loadDbBtn}</div>${dbPicker}`;
+  const addLayerIconBtn=`<button class="btn icon-btn" id="addLayerBtn" title="新增位置資料集（CSV）">＋</button>`;
+  const loadDbBtn=`<button class="btn" id="loadDbBtn" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;background:#EEF6FD;border-color:#137ECE;color:#002850;font-weight:700;">📊 從 Shop DB 載入</button>`;
+  const dbToolbar=`<div class="shops-tab-section"><div style="display:flex;gap:6px;margin-bottom:${shopDbPickerOpen?'6px':'0'};">${addLayerIconBtn}${loadDbBtn}</div>${dbPicker}</div>`;
   let uploadHtml=csvLayers.length===0
     ?`<div class="upload-zone" id="uploadZone">
         <div class="uz-icon">📋</div>
-        <div class="uz-title">上傳資料集 Upload dataset</div>
-        <div class="uz-sub">CSV 格式，需含 lat/GISY, lng/GISX 欄位（與 Shop DB 共用標準）<br>columns: name, status, priority, address, category, contact_name, contact_phone, notes, rating, lat, lng<br>status: 尚未開發 / 電訪過 / 電訪過-拒絕 / 拜訪過 / 拜訪過-有意願 / 拜訪過-評估中 / 拜訪過-拒絕 / 已合作 / 已合作-流失<br>priority: P1 / P2 / P3（optional）</div>
+        <div class="uz-title">上傳資料集</div>
+        <div class="uz-sub">CSV 格式，需含 lat/GISY, lng/GISX 欄位（與 Shop DB 共用標準）<br>columns: name, status, priority, address, category, contact_name, contact_phone, notes, rating, lat, lng<br>status: 尚未開發 / 電訪過 / 電訪過-拒絕 / 拜訪過 / 拜訪過-有意願 / 拜訪過-評估中 / 拜訪過-拒絕 / 已合作 / 已合作-流失<br>priority: P1 / P2 / P3（選填）</div>
       </div>${dbToolbar}`
     :dbToolbar;
 
   // Search box — finds a shop by name across whatever's currently shown on the map (active
   // layers, respecting their current filters) and jumps to it on click. Restricted to shops
   // that are actually rendered right now, since "jump to it" needs a real marker to open.
-  const searchHtml=csvLayers.length>0?`<div class="shop-search-wrap" style="margin-bottom:10px;">
+  const searchHtml=csvLayers.length>0?`<div class="shop-search-wrap shops-tab-section">
       <div class="search-input-wrap">
         <span class="search-input-icon">🔍</span>
-        <input type="text" id="shopSearchInput" class="btn" style="width:100%;text-align:left;font-weight:500;box-sizing:border-box;" placeholder="搜尋店名 Search shop name…" value="${esc(shopSearchQuery)}">
+        <input type="text" id="shopSearchInput" class="btn" style="width:100%;text-align:left;font-weight:500;box-sizing:border-box;" placeholder="搜尋店名..." value="${esc(shopSearchQuery)}">
       </div>
       <div id="shopSearchResults">${buildShopSearchResultsHtml()}</div>
     </div>`:'';
+  const layersHeaderHtml=csvLayers.length>0?`<div class="shops-tab-label">資料集</div>`:'';
 
   let layersHtml='';
   const RATING_COLORS={'A':'#0E8F6B','B':'#E08E2C','C':'#E0584A','D':'#8B5CF6','E':'#798BA5'};
@@ -2090,7 +2121,8 @@ function renderShopsTab(){
     const showStatus=kind!=='infrastructure';
     const showSalesRepAndTier=kind==='sales';
     const showRatingFilters=kind!=='infrastructure';
-    const statChips=[...new Set(layer.data.map(s=>s.status))].map(st=>{
+    const statuses=[...new Set(layer.data.map(s=>s.status))];
+    const statChips=statuses.map(st=>{
       const style=statusStyle(st);
       const cnt=layer.data.filter(s=>s.status===st&&shopPassesLayerFilters(s,layer,'statusFilters')).length;
       const active=layer.statusFilters.has(st);
@@ -2107,7 +2139,7 @@ function renderShopsTab(){
       const cnt=layer.data.filter(s=>ratingTierKey(s)===rg&&shopPassesLayerFilters(s,layer,'ratingFilters')).length;
       const active=layer.ratingFilters.has(rg);
       const col=rg==='none'?'#AEB4BD':(RATING_COLORS[rg]||'#798BA5');
-      const label=rg==='none'?'無等級 No tier':`${esc(rg)} 級`;
+      const label=rg==='none'?'無等級':`${esc(rg)} 級`;
       return`<span class="sf-chip${active?' active':''}" data-lid="${esc(layer.id)}" data-rating="${esc(rg)}" style="--dot-color:${col};font-size:10px;padding:2px 7px;"><span class="sf-dot"></span>${label}<span class="sf-count">${cnt}</span></span>`;
     }).join('');
     const gRatingChips=GRATING_BUCKETS.map(b=>{
@@ -2125,7 +2157,7 @@ function renderShopsTab(){
     const regionChips=regionKeys.map(rg=>{
       const cnt=layer.data.filter(s=>regionKeyOf(s)===rg&&shopPassesLayerFilters(s,layer,'regionFilters')).length;
       const active=layer.regionFilters.has(rg);
-      const label=rg==='none'?'未知地區 Unknown region':esc(rg);
+      const label=rg==='none'?'未知地區':esc(rg);
       return`<span class="sf-chip${active?' active':''}" data-lid="${esc(layer.id)}" data-region="${esc(rg)}" style="--dot-color:${rg==='none'?'#AEB4BD':'#3B6FD9'};font-size:10px;padding:2px 7px;"><span class="sf-dot"></span>${label}<span class="sf-count">${cnt}</span></span>`;
     }).join('');
     const counties=[...new Set(layer.data.map(s=>s.county).filter(Boolean))].sort((a,b)=>countyNSRankZH(a)-countyNSRankZH(b));
@@ -2133,7 +2165,7 @@ function renderShopsTab(){
     const countyChips=countyKeys.map(cty=>{
       const cnt=layer.data.filter(s=>countyKeyOf(s)===cty&&shopPassesLayerFilters(s,layer,'countyFilters')).length;
       const active=layer.countyFilters.has(cty);
-      const label=cty==='none'?'未知縣市 Unknown county':esc(cty);
+      const label=cty==='none'?'未知縣市':esc(cty);
       return`<span class="sf-chip${active?' active':''}" data-lid="${esc(layer.id)}" data-county="${esc(cty)}" style="--dot-color:${cty==='none'?'#AEB4BD':'#1FA67A'};font-size:10px;padding:2px 7px;"><span class="sf-dot"></span>${label}<span class="sf-count">${cnt}</span></span>`;
     }).join('');
     const salesReps=[...new Set(layer.data.map(s=>s.sales_rep).filter(Boolean))].sort();
@@ -2141,13 +2173,13 @@ function renderShopsTab(){
     const salesRepChips=salesRepKeys.map(sr=>{
       const cnt=layer.data.filter(s=>salesRepKeyOf(s)===sr&&shopPassesLayerFilters(s,layer,'salesRepFilters')).length;
       const active=layer.salesRepFilters.has(sr);
-      const label=sr==='none'?'未指派 Unassigned':esc(sr);
+      const label=sr==='none'?'未指派':esc(sr);
       return`<span class="sf-chip${active?' active':''}" data-lid="${esc(layer.id)}" data-salesrep="${esc(sr)}" style="--dot-color:${sr==='none'?'#AEB4BD':'#8B5CF6'};font-size:10px;padding:2px 7px;"><span class="sf-dot"></span>${label}<span class="sf-count">${cnt}</span></span>`;
     }).join('');
     // Merida OEM flag chip group — only meaningful/shown on the Merida dataset layer, since
     // sells_merida_oem isn't a concept that applies to any other dataset (see isMeridaLayer).
     const isMerida=isMeridaLayer(layer);
-    const MERIDA_OEM_LABELS={yes:'美利達OEM經銷商 Merida OEM dealer',no:'非美利達OEM Not OEM dealer'};
+    const MERIDA_OEM_LABELS={yes:'美利達OEM經銷商',no:'非美利達OEM'};
     const meridaOemChips=isMerida?['yes','no'].map(k=>{
       const cnt=layer.data.filter(s=>(s.sells_merida_oem?'yes':'no')===k&&shopPassesLayerFilters(s,layer,'meridaOemFilters')).length;
       const active=layer.meridaOemFilters.has(k);
@@ -2163,41 +2195,40 @@ function renderShopsTab(){
     const campaignChips=campaignChipKeys.map(key=>{
       const cnt=layer.data.filter(s=>campaignKey(s)===key&&shopPassesLayerFilters(s,layer,'campaignFilters')).length;
       const active=layer.campaignFilters.has(key);
-      const label=key==='none'?'未指派計畫 No campaign':(campaignNameById(key)||'Campaign');
+      const label=key==='none'?'未指派計畫':(campaignNameById(key)||'計畫');
       const dotColor=key==='none'?'#AEB4BD':'#E65100';
       return`<span class="sf-chip${active?' active':''}" data-lid="${esc(layer.id)}" data-campaign="${esc(key)}" style="--dot-color:${dotColor};font-size:10px;padding:2px 7px;"><span class="sf-dot"></span>${esc(label)}<span class="sf-count">${cnt}</span></span>`;
     }).join('');
-    // All applicable filter groups for this layer, gated by kind — collapsed by default behind
-    // the "⚙ Filters" button so a growing number of datasets/filter dimensions doesn't clutter
-    // the list. layer._filtersOpen is in-memory UI state, not persisted.
-    const priorityColorBtn=`<button class="btn layer-priority-color-btn" data-lid="${esc(layer.id)}" style="font-size:9px;padding:1px 6px;${layer.colorByPriority?'background:var(--accent-light);border-color:var(--accent);color:var(--accent);':''}">🎨 依優先順序著色 Color by priority</button>`;
+    // All applicable filter groups for this layer, gated by kind — collapsed behind the "⚙ 篩選"
+    // button, and each group is its own accordion section within that panel (see filterSection).
+    const priorityColorBtn=`<button class="btn layer-priority-color-btn" data-lid="${esc(layer.id)}" style="font-size:9px;padding:1px 6px;${layer.colorByPriority?'background:var(--accent-light);border-color:var(--accent);color:var(--accent);':''}">🎨 依優先順序著色</button>`;
     const filterGroups=[
-      showStatus?`${groupHeader('狀態 Status',layer.id,'statusFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${statChips}</div>`:'',
-      showStatus?`${groupHeader('優先順序 Priority',layer.id,'priorityFilters',priorityColorBtn)}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${priorityChips}</div>`:'',
-      (showSalesRepAndTier&&ratingGroups.length)?`${groupHeader('店家等級 Shop rating',layer.id,'ratingFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${ratingChips}</div>`:'',
-      showRatingFilters?`${groupHeader('Google 評分 Google rating',layer.id,'gRatingBucketFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${gRatingChips}</div>`:'',
-      showRatingFilters?`${groupHeader('Google 評論數 Review count',layer.id,'rCountBucketFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${rCountChips}</div>`:'',
-      regions.length?`${groupHeader('地區 Region',layer.id,'regionFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${regionChips}</div>`:'',
-      counties.length?`${groupHeader('縣市 County',layer.id,'countyFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${countyChips}</div>`:'',
-      (showSalesRepAndTier&&salesReps.length)?`${groupHeader('業務員 Sales rep',layer.id,'salesRepFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${salesRepChips}</div>`:'',
-      isMerida?`${groupHeader('美利達 OEM Merida OEM',layer.id,'meridaOemFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${meridaOemChips}</div>`:'',
-      campaignIds.length?`${groupHeader('計畫 Campaign',layer.id,'campaignFilters')}<div style="display:flex;flex-wrap:wrap;gap:4px;">${campaignChips}</div>`:''
+      showStatus?filterSection(layer,'狀態','statusFilters',statChips,layer.statusFilters.size,statuses.length):'',
+      showStatus?filterSection(layer,'優先順序','priorityFilters',priorityChips,layer.priorityFilters.size,PRIORITY_ORDER.length,priorityColorBtn):'',
+      (showSalesRepAndTier&&ratingGroups.length)?filterSection(layer,'店家等級','ratingFilters',ratingChips,layer.ratingFilters.size,ratingTierKeys.length):'',
+      showRatingFilters?filterSection(layer,'Google 評分','gRatingBucketFilters',gRatingChips,layer.gRatingBucketFilters.size,GRATING_BUCKETS.length):'',
+      showRatingFilters?filterSection(layer,'Google 評論數','rCountBucketFilters',rCountChips,layer.rCountBucketFilters.size,RCOUNT_BUCKETS.length):'',
+      regions.length?filterSection(layer,'地區','regionFilters',regionChips,layer.regionFilters.size,regionKeys.length):'',
+      counties.length?filterSection(layer,'縣市','countyFilters',countyChips,layer.countyFilters.size,countyKeys.length):'',
+      (showSalesRepAndTier&&salesReps.length)?filterSection(layer,'業務員','salesRepFilters',salesRepChips,layer.salesRepFilters.size,salesRepKeys.length):'',
+      isMerida?filterSection(layer,'美利達 OEM','meridaOemFilters',meridaOemChips,layer.meridaOemFilters.size,2):'',
+      campaignIds.length?filterSection(layer,'計畫','campaignFilters',campaignChips,layer.campaignFilters.size,campaignChipKeys.length):''
     ].filter(Boolean).join('');
     const filtersOpen=!!layer._filtersOpen;
-    layersHtml+=`<div class="layer-card" style="border:1.5px solid ${isActive?layer.color:'var(--border)'};border-radius:9px;padding:9px 11px;margin-bottom:8px;">
-      <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px;">
+    layersHtml+=`<div class="layer-card" style="border:1.5px solid ${isActive?layer.color:'var(--border)'};border-radius:9px;padding:10px 12px;margin-bottom:10px;">
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;">
         <span style="width:11px;height:11px;border-radius:50%;background:${esc(layer.color)};flex-shrink:0;display:inline-block;"></span>
         <span style="font-weight:700;font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(layer.name)}">${esc(layer.name)}</span>
-        <button class="btn layer-toggle-btn" data-lid="${esc(layer.id)}" style="font-size:12px;font-weight:700;padding:5px 13px;${isActive?'background:var(--ink);color:#fff;border-color:var(--ink)':''}">${isActive?'ON':'OFF'}</button>
-        ${layer.id.startsWith('shopdb_')?`<button class="btn layer-refresh-btn" data-lid="${esc(layer.id)}" title="從資料庫重新同步（不會清除目前篩選）Re-sync with the database (keeps your current filters)" style="font-size:12px;padding:5px 9px;">🔄</button>`:''}
-        <button class="btn layer-export-btn" data-lid="${esc(layer.id)}" title="匯出此資料集（依目前篩選）Export this dataset (respects active filters)" style="font-size:12px;padding:5px 9px;">⬇</button>
+        <button class="btn layer-toggle-btn" data-lid="${esc(layer.id)}" style="font-size:12px;font-weight:700;padding:5px 13px;${isActive?'background:var(--ink);color:#fff;border-color:var(--ink)':''}">${isActive?'開':'關'}</button>
+        ${layer.id.startsWith('shopdb_')?`<button class="btn layer-refresh-btn" data-lid="${esc(layer.id)}" title="從資料庫重新同步（不會清除目前篩選）" style="font-size:12px;padding:5px 9px;">🔄</button>`:''}
+        <button class="btn layer-export-btn" data-lid="${esc(layer.id)}" title="匯出此資料集（依目前篩選）" style="font-size:12px;padding:5px 9px;">⬇</button>
         <button class="btn btn-red layer-del-btn" data-lid="${esc(layer.id)}" style="font-size:12px;padding:5px 11px;">✕</button>
       </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${filtersOpen?'6px':'0'};gap:6px;">
-        <span style="font-size:10px;color:var(--soft);">${visCount} / ${layer.data.length} shops shown</span>
-        <div style="display:flex;gap:4px;flex-shrink:0;">
-          <button class="btn layer-zoom-btn" data-lid="${esc(layer.id)}" title="縮放地圖至目前篩選出的店家 Zoom the map to fit the shops currently shown" style="font-size:10.5px;padding:3px 9px;">🔍 縮放 Zoom</button>
-          <button class="btn layer-filters-btn" data-lid="${esc(layer.id)}" style="font-size:10.5px;padding:3px 9px;${filtersOpen?'background:var(--accent-light);border-color:var(--accent);color:var(--accent);':''}">⚙ 篩選 Filters${filtersOpen?' ▾':' ▸'}</button>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${filtersOpen?'8px':'0'};gap:6px;">
+        <span style="font-size:10px;color:var(--soft);">已顯示 ${visCount} / ${layer.data.length} 間店家</span>
+        <div style="display:flex;gap:5px;flex-shrink:0;">
+          <button class="btn layer-zoom-btn" data-lid="${esc(layer.id)}" title="縮放地圖至目前篩選出的店家" style="font-size:10.5px;padding:3px 9px;">🔍 縮放</button>
+          <button class="btn layer-filters-btn" data-lid="${esc(layer.id)}" style="font-size:10.5px;padding:3px 9px;${filtersOpen?'background:var(--accent-light);border-color:var(--accent);color:var(--accent);':''}">⚙ 篩選${filtersOpen?' ▾':' ▸'}</button>
         </div>
       </div>
       ${filtersOpen?`<div class="layer-filters-panel">${filterGroups}</div>`:''}
@@ -2216,7 +2247,7 @@ function renderShopsTab(){
     tableHtml=`<div class="shop-table-wrap" style="margin-top:8px;"><table class="sh-table"><thead><tr><th>店名</th><th>資料集</th></tr></thead><tbody>${rows}</tbody></table>${bikeshopData.length>300?`<div style="font-size:10px;color:var(--soft);padding:5px 0">顯示前300筆，共${bikeshopData.length}筆</div>`:''}</div>`;
   }
 
-  el.innerHTML=uploadHtml+searchHtml+layersHtml+tableHtml;
+  el.innerHTML=uploadHtml+searchHtml+layersHeaderHtml+layersHtml+tableHtml;
 
   if(csvLayers.length>0){
     const searchInput=document.getElementById('shopSearchInput');
@@ -2307,6 +2338,15 @@ function renderShopsTab(){
     btn.addEventListener('click',()=>{
       const layer=csvLayers.find(l=>l.id===btn.dataset.lid);if(!layer)return;
       layer._filtersOpen=!layer._filtersOpen;
+      renderShopsTab();
+    });
+  });
+  el.querySelectorAll('.filter-section-header').forEach(header=>{
+    header.addEventListener('click',()=>{
+      const layer=csvLayers.find(l=>l.id===header.dataset.lid);if(!layer)return;
+      const field=header.dataset.field;
+      if(!layer._openGroups)layer._openGroups=new Set(['statusFilters']);
+      if(layer._openGroups.has(field))layer._openGroups.delete(field);else layer._openGroups.add(field);
       renderShopsTab();
     });
   });
