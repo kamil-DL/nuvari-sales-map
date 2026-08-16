@@ -25,6 +25,7 @@
   .stop-actions button { background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px 6px; border-radius: 6px; color: var(--nst-gray); }
   .stop-actions button:hover:not(:disabled) { background: var(--nst-bg); color: var(--nst-ink); }
   .stop-actions button:disabled { opacity: .3; cursor: default; }
+  .move-day-select { font-size: 11.5px; font-weight: 600; color: var(--nst-gray); border: 1px solid var(--nst-border); border-radius: 6px; padding: 3px 4px; max-width: 110px; }
   #shop-results { position: relative; }
 </style>
 </head>
@@ -77,6 +78,23 @@
             <button data-status="planned"   class="nst-btn nst-btn-ghost  nst-btn-sm status-btn">📅 規劃中 Planned</button>
             <button data-status="completed" class="nst-btn nst-btn-outline nst-btn-sm status-btn">✅ 完成 Completed</button>
             <button data-status="cancelled" class="nst-btn nst-btn-danger nst-btn-sm status-btn" style="opacity:.7">取消 Cancel</button>
+          </div>
+        </div>
+
+        <div id="date-edit" style="display:none;margin-top:16px;padding-top:14px;border-top:1px solid var(--nst-border)">
+          <label class="nst-field-label">變更日期 Change date</label>
+          <div style="font-size:12px;color:var(--nst-gray);margin-bottom:6px">店家不一定都能配合原訂日期，隨時可調整 Shop availability doesn't always match the original date — adjust anytime</div>
+          <div style="display:flex;gap:8px">
+            <input id="f-plan-date" type="date" class="nst-input"/>
+            <button id="save-date-btn" class="nst-btn nst-btn-outline nst-btn-sm">儲存 Save</button>
+          </div>
+        </div>
+
+        <div id="rep-edit" style="display:none;margin-top:16px;padding-top:14px;border-top:1px solid var(--nst-border)">
+          <label class="nst-field-label">指派業務代表 Reassign rep</label>
+          <div style="display:flex;gap:8px">
+            <select id="f-plan-rep" class="nst-select"></select>
+            <button id="save-rep-btn" class="nst-btn nst-btn-outline nst-btn-sm">儲存 Save</button>
           </div>
         </div>
 
@@ -141,7 +159,7 @@
 <script type="module">
 import { requireAuth, signOut } from './js/auth.js';
 import { LOGO } from './js/logo.js';
-import { getPlan, updatePlan, deletePlan, addStop, removeStop, reorderStops, PLAN_STATUS_LABELS } from './js/planner.js';
+import { getPlan, updatePlan, deletePlan, addStop, removeStop, reorderStops, loadPlans, PLAN_STATUS_LABELS } from './js/planner.js';
 import { addVisit } from './js/visits.js';
 import { loadShops, loadUserDirectory, repLabel, loadCampaigns, STATUS_LABELS, PRIORITY_LABELS } from './js/shops.js';
 import { canAssignToOthers } from '../shared/delete-policy.js';
@@ -162,12 +180,18 @@ if (!planId) { location.href = 'planner.html'; }
 let plan = null;
 let repsById = {};
 let campaignsById = {};
+let siblingPlans = []; // other day-plans in the same campaign — lets a stop move to a different day
 const isEditable = () => plan && (plan.rep_id === user.id || canAssignToOthers(user.email));
+const isAdmin = () => canAssignToOthers(user.email);
 
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function fmtDate(d) {
   if (!d) return '—';
   return new Date(d + 'T00:00:00').toLocaleDateString('zh-TW', { year:'numeric', month:'long', day:'numeric', weekday:'long' });
+}
+function fmtDateShort(d) {
+  if (!d) return '—';
+  return new Date(d + 'T00:00:00').toLocaleDateString('zh-TW', { month:'2-digit', day:'2-digit', weekday:'short' });
 }
 function planStatusBadge(s) {
   const info = PLAN_STATUS_LABELS[s] || { zh: s, en: s, color: 'badge-gray' };
@@ -251,6 +275,10 @@ function renderStops() {
           ${visited
             ? `<a href="visit-detail.html?id=${stop.visit_id}" class="nst-btn nst-btn-ghost nst-btn-sm">✅ 已拜訪 Visited</a>`
             : (editable ? `<button class="mark-visited-btn nst-btn nst-btn-outline nst-btn-sm" data-shop-id="${shop.id}" data-stop-id="${stop.id}">標記已拜訪 Mark visited</button>` : '')}
+          ${(editable && siblingPlans.length) ? `<select class="move-day-select" data-stop-id="${stop.id}" data-shop-id="${shop.id}" title="移至其他天 Move to a different day">
+            <option value="">↷ 移至... Move to</option>
+            ${siblingPlans.map(p => `<option value="${p.id}">${fmtDateShort(p.plan_date)}</option>`).join('')}
+          </select>` : ''}
           ${editable ? `<button class="move-up-btn" title="上移 Move up" ${i === 0 ? 'disabled' : ''}>↑</button>` : ''}
           ${editable ? `<button class="move-down-btn" title="下移 Move down" ${i === stops.length - 1 ? 'disabled' : ''}>↓</button>` : ''}
           ${editable ? `<button class="remove-stop-btn" title="移除 Remove">✕</button>` : ''}
@@ -284,6 +312,8 @@ function render() {
 
   if (editable) {
     document.getElementById('status-actions').style.display = '';
+    document.getElementById('date-edit').style.display = '';
+    document.getElementById('f-plan-date').value = plan.plan_date;
     document.getElementById('start-location-edit').style.display = '';
     document.getElementById('f-start-location').value = plan.start_location || '';
     updateStartLocationLabel();
@@ -291,12 +321,29 @@ function render() {
     document.getElementById('delete-plan-wrap').style.display = '';
   }
 
+  if (isAdmin()) {
+    document.getElementById('rep-edit').style.display = '';
+    const repSelect = document.getElementById('f-plan-rep');
+    repSelect.innerHTML = Object.entries(repsById)
+      .map(([id, email]) => `<option value="${id}">${esc(repLabel(email))}</option>`).join('');
+    repSelect.value = plan.rep_id;
+  }
+
   renderStops();
+}
+
+async function loadSiblingPlans() {
+  if (!plan.campaign_id) { siblingPlans = []; return; }
+  try {
+    const all = await loadPlans({ campaignId: plan.campaign_id });
+    siblingPlans = all.filter(p => p.id !== planId).sort((a, b) => a.plan_date.localeCompare(b.plan_date));
+  } catch (e) { siblingPlans = []; }
 }
 
 async function load() {
   try {
     plan = await getPlan(planId);
+    await loadSiblingPlans();
     render();
     document.getElementById('loading').style.display = 'none';
     document.getElementById('content').style.display = '';
@@ -315,6 +362,33 @@ document.querySelectorAll('.status-btn').forEach(btn => {
     try { plan = await updatePlan(planId, { status: btn.dataset.status }); render(); showSavedToast(); }
     catch (e) { document.getElementById('error-banner').textContent = e.message; document.getElementById('error-banner').style.display = ''; btn.disabled = false; }
   });
+});
+
+// Date — a shop owner isn't always free on the originally-planned day, so the whole plan's date
+// (not just which stops are on it) needs to stay adjustable, not fixed at creation.
+document.getElementById('save-date-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('save-date-btn');
+  const val = document.getElementById('f-plan-date').value;
+  if (!val) return;
+  btn.disabled = true; btn.textContent = '儲存中…';
+  try {
+    plan = await updatePlan(planId, { plan_date: val });
+    await loadSiblingPlans();
+    render();
+    showSavedToast();
+  } catch (e) { document.getElementById('error-banner').textContent = e.message; document.getElementById('error-banner').style.display = ''; }
+  finally { btn.disabled = false; btn.textContent = '儲存 Save'; }
+});
+
+// Reassign rep — admin-only (canAssignToOthers), same gate as creating a plan for someone else.
+document.getElementById('save-rep-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('save-rep-btn');
+  const val = document.getElementById('f-plan-rep').value;
+  if (!val) return;
+  btn.disabled = true; btn.textContent = '儲存中…';
+  try { plan = await updatePlan(planId, { rep_id: val }); render(); showSavedToast(); }
+  catch (e) { document.getElementById('error-banner').textContent = e.message; document.getElementById('error-banner').style.display = ''; }
+  finally { btn.disabled = false; btn.textContent = '儲存 Save'; }
 });
 
 // Start location
@@ -413,6 +487,32 @@ document.getElementById('stops-list').addEventListener('click', async e => {
       document.getElementById('error-banner').style.display = '';
       e.target.disabled = false; e.target.textContent = '標記已拜訪 Mark visited';
     }
+  }
+});
+
+// Move a stop to a different day-plan within the same campaign — a shop owner isn't always free
+// on the day it landed on, so this is a straight remove-from-here/add-there rather than requiring
+// a trip to the other plan's page. The stop's own visit_id (if it was already marked visited)
+// deliberately does NOT carry over — a completed visit stays tied to the day it actually happened.
+document.getElementById('stops-list').addEventListener('change', async e => {
+  if (!e.target.classList.contains('move-day-select')) return;
+  const sel = e.target;
+  const targetPlanId = sel.value;
+  if (!targetPlanId) return;
+  const stopId = sel.dataset.stopId;
+  const shopId = sel.dataset.shopId;
+  sel.disabled = true;
+  try {
+    const targetPlan = await getPlan(targetPlanId);
+    await addStop(targetPlanId, shopId, targetPlan.visit_plan_stops.length);
+    await removeStop(stopId);
+    plan.visit_plan_stops = plan.visit_plan_stops.filter(s => s.id !== stopId);
+    renderStops();
+    showSavedToast();
+  } catch (err) {
+    document.getElementById('error-banner').textContent = err.message;
+    document.getElementById('error-banner').style.display = '';
+    sel.disabled = false; sel.value = '';
   }
 });
 
