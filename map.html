@@ -747,9 +747,14 @@ function allKeysForField(layer,field){
 // decided which ones you care about. Each group is now its own collapsible accordion section:
 // closed by default (just a header + a "3/9 已選" summary), except 狀態 which stays open since
 // it's the one almost everyone touches first. layer._openGroups is in-memory UI state (like
-// _filtersOpen), not persisted — every layer just reopens with only Status expanded next session.
+// _filtersOpen), meant to never be persisted (persistBikeshops strips it) — every layer just
+// reopens with only Status expanded next session. The `instanceof Set` check (not just truthy)
+// matters: a layer saved once *before* persistBikeshops stripped this field got `{}` back from
+// JSON.parse (Set -> "{}" via JSON.stringify, same trap the *Filters fields hit long before this)
+// — a bare truthy check would accept that broken object and then crash on the very next line's
+// .has() call. This self-heals any such already-corrupted saved session instead of throwing.
 function filterSection(layer,label,field,chipsHtml,activeCount,totalCount,extraBtnHtml){
-  if(!layer._openGroups)layer._openGroups=new Set(['statusFilters']);
+  if(!(layer._openGroups instanceof Set))layer._openGroups=new Set(['statusFilters']);
   const isOpen=layer._openGroups.has(field);
   const summary=activeCount===totalCount?`全部 ${totalCount}`:`${activeCount}/${totalCount} 已選`;
   return`<div class="filter-section">
@@ -2345,7 +2350,7 @@ function renderShopsTab(){
     header.addEventListener('click',()=>{
       const layer=csvLayers.find(l=>l.id===header.dataset.lid);if(!layer)return;
       const field=header.dataset.field;
-      if(!layer._openGroups)layer._openGroups=new Set(['statusFilters']);
+      if(!(layer._openGroups instanceof Set))layer._openGroups=new Set(['statusFilters']);
       if(layer._openGroups.has(field))layer._openGroups.delete(field);else layer._openGroups.add(field);
       renderShopsTab();
     });
@@ -2703,18 +2708,29 @@ function persistBikeshops(){
     // gap — a reload would leave them as inert {} objects instead of Sets — fixed alongside the
     // two new bucket filters below since they'd have hit the exact same bug. meridaOemFilters/
     // campaignFilters had the exact same gap when they were added later — fixed here too.)
-    const serializableLayers=csvLayers.map(l=>({...l,
-      statusFilters:[...l.statusFilters],
-      priorityFilters:l.priorityFilters?[...l.priorityFilters]:[],
-      ratingFilters:l.ratingFilters?[...l.ratingFilters]:[],
-      regionFilters:l.regionFilters?[...l.regionFilters]:[],
-      countyFilters:l.countyFilters?[...l.countyFilters]:[],
-      salesRepFilters:l.salesRepFilters?[...l.salesRepFilters]:[],
-      gRatingBucketFilters:l.gRatingBucketFilters?[...l.gRatingBucketFilters]:[],
-      rCountBucketFilters:l.rCountBucketFilters?[...l.rCountBucketFilters]:[],
-      meridaOemFilters:l.meridaOemFilters?[...l.meridaOemFilters]:[],
-      campaignFilters:l.campaignFilters?[...l.campaignFilters]:[]
-    }));
+    // _openGroups is also a Set, but unlike the *Filters fields it's meant to be pure in-memory
+    // UI state (like _filtersOpen) — explicitly dropped here (not converted to an array) so it's
+    // never written to storage at all. Leaving it in the spread silently serialized it to "{}",
+    // which loadSession() then restored as a plain object instead of a Set — the very next
+    // filterSection() call crashed on `{}.has is not a function`, before el.innerHTML ever got
+    // set, leaving the whole 資料集 panel blank. filterSection() now also self-heals against any
+    // already-corrupted `_openGroups` a past save may have left behind, but the actual fix is to
+    // never persist it in the first place.
+    const serializableLayers=csvLayers.map(l=>{
+      const {_openGroups,...rest}=l;
+      return {...rest,
+        statusFilters:[...l.statusFilters],
+        priorityFilters:l.priorityFilters?[...l.priorityFilters]:[],
+        ratingFilters:l.ratingFilters?[...l.ratingFilters]:[],
+        regionFilters:l.regionFilters?[...l.regionFilters]:[],
+        countyFilters:l.countyFilters?[...l.countyFilters]:[],
+        salesRepFilters:l.salesRepFilters?[...l.salesRepFilters]:[],
+        gRatingBucketFilters:l.gRatingBucketFilters?[...l.gRatingBucketFilters]:[],
+        rCountBucketFilters:l.rCountBucketFilters?[...l.rCountBucketFilters]:[],
+        meridaOemFilters:l.meridaOemFilters?[...l.meridaOemFilters]:[],
+        campaignFilters:l.campaignFilters?[...l.campaignFilters]:[]
+      };
+    });
     localStorage.setItem(BIKESHOPS_STORAGE_KEY,JSON.stringify({layers:serializableLayers,activeLayerIds:[...activeLayerIds]}));
     const badge=document.getElementById('shopTabBadge');if(badge&&bikeshopData.length>0)badge.textContent=`(${bikeshopData.length})`;
   }catch(e){}
