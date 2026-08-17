@@ -123,6 +123,16 @@ try {
   // Non-fatal — plans list still works without rep names / campaign filter options.
 }
 
+// Direct link support: ?campaign=<id> pre-selects that campaign (and switches to "All reps",
+// since a campaign view is normally meant to show everyone's plans in it, not just your own) —
+// so a specific campaign's day plans can be bookmarked/shared instead of always starting from
+// "select it from the dropdown every time".
+const urlCampaignId = new URLSearchParams(location.search).get('campaign');
+if (urlCampaignId && campaigns.some(c => c.id === urlCampaignId)) {
+  document.getElementById('campaign-filter').value = urlCampaignId;
+  document.getElementById('rep-filter').value = 'all';
+}
+
 function renderPlans(plans) {
   const list = document.getElementById('plans-list');
   if (!plans.length) {
