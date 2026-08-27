@@ -593,8 +593,8 @@ let popupClickGuard=false;
 document.addEventListener('click',ev=>{
   if(ev.target&&ev.target.closest&&ev.target.closest('.leaflet-popup'))popupClickGuard=true;
 },true);
-const APP_VERSION='0.5.1'; // whole-suite version now (see index.html dashboard header), not per-file
-const BUILD_DATE='2026-07-05';
+const APP_VERSION='0.9.0'; // per-module version now, matches index.html's map card (see its v-meta)
+const BUILD_DATE='2026-08-27';
 
 
 /* status styling — any string not in this map gets 'default' */

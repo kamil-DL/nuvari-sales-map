@@ -81,8 +81,26 @@ function injectModal() {
       <input id="nst-auth-email" type="email" class="nst-input" placeholder="you@example.com" autocomplete="email"/>
       <label class="nst-field-label">密碼 Password</label>
       <input id="nst-auth-password" type="password" class="nst-input" placeholder="Password" autocomplete="current-password"/>
+      <div style="text-align:right;margin-top:6px">
+        <a id="nst-auth-forgot-link" href="#" style="font-size:12.5px;color:var(--nst-accent-dark);font-weight:600">忘記密碼？Forgot password?</a>
+      </div>
       <div id="nst-auth-error" class="nst-auth-error"></div>
       <button id="nst-auth-submit" class="nst-btn nst-btn-primary nst-btn-full">登入 Sign in</button>
+    </div>
+    <div id="nst-auth-forgot" style="display:none">
+      <div class="nst-auth-title">重設密碼 Reset password</div>
+      <div class="nst-auth-sub">輸入您的電子郵件，我們會寄送重設密碼連結給您</div>
+      <div class="nst-auth-sub">Enter your email and we'll send you a reset link</div>
+      <label class="nst-field-label">電子郵件 Email</label>
+      <input id="nst-auth-forgot-email" type="email" class="nst-input" placeholder="you@example.com" autocomplete="email"/>
+      <div id="nst-auth-forgot-error" class="nst-auth-error"></div>
+      <div id="nst-auth-forgot-sent" style="display:none;font-size:13px;color:var(--nst-accent-dark);font-weight:600;margin-top:10px">
+        ✓ 已寄出重設連結，請至信箱查看 Reset link sent — check your inbox
+      </div>
+      <button id="nst-auth-forgot-submit" class="nst-btn nst-btn-primary nst-btn-full">傳送重設連結 Send reset link</button>
+      <div style="text-align:center;margin-top:10px">
+        <a id="nst-auth-back-to-signin" href="#" style="font-size:12.5px;color:var(--nst-gray);font-weight:600">← 返回登入 Back to sign in</a>
+      </div>
     </div>
     <div id="nst-auth-setpw" style="display:none">
       <div class="nst-auth-title">設定密碼 Set password</div>
@@ -104,17 +122,41 @@ function injectModal() {
   document.getElementById('nst-auth-password').addEventListener('keydown', e => { if (e.key === 'Enter') doSignIn(); });
   document.getElementById('nst-auth-submit').addEventListener('click', doSignIn);
   document.getElementById('nst-auth-setpw-submit').addEventListener('click', doSetPassword);
+
+  document.getElementById('nst-auth-forgot-link').addEventListener('click', e => {
+    e.preventDefault();
+    showForgotPassword();
+  });
+  document.getElementById('nst-auth-back-to-signin').addEventListener('click', e => {
+    e.preventDefault();
+    showSignIn();
+  });
+  document.getElementById('nst-auth-forgot-email').addEventListener('keydown', e => { if (e.key === 'Enter') doForgotPassword(); });
+  document.getElementById('nst-auth-forgot-submit').addEventListener('click', doForgotPassword);
 }
 
 function showSignIn() {
   document.getElementById('nst-auth-signin').style.display = '';
+  document.getElementById('nst-auth-forgot').style.display = 'none';
   document.getElementById('nst-auth-setpw').style.display = 'none';
   document.getElementById('nst-auth-modal').style.display = '';
   setTimeout(() => document.getElementById('nst-auth-email').focus(), 50);
 }
 
+function showForgotPassword() {
+  document.getElementById('nst-auth-forgot-email').value = document.getElementById('nst-auth-email').value.trim();
+  document.getElementById('nst-auth-forgot-error').textContent = '';
+  document.getElementById('nst-auth-forgot-sent').style.display = 'none';
+  document.getElementById('nst-auth-forgot-submit').style.display = '';
+  document.getElementById('nst-auth-signin').style.display = 'none';
+  document.getElementById('nst-auth-forgot').style.display = '';
+  document.getElementById('nst-auth-modal').style.display = '';
+  setTimeout(() => document.getElementById('nst-auth-forgot-email').focus(), 50);
+}
+
 function showSetPassword() {
   document.getElementById('nst-auth-signin').style.display = 'none';
+  document.getElementById('nst-auth-forgot').style.display = 'none';
   document.getElementById('nst-auth-setpw').style.display = '';
   document.getElementById('nst-auth-modal').style.display = '';
   setTimeout(() => document.getElementById('nst-auth-newpw').focus(), 50);
@@ -145,6 +187,32 @@ async function doSignIn() {
   saveSession(session, data.user);
   hideModal();
   location.href = '../../index.html';
+}
+
+// Sends a Supabase recovery email. The link it contains redirects back to whatever page/env the
+// user requested from (redirectTo below) with #access_token=...&type=recovery in the hash —
+// requireAuth()'s existing isInviteOrRecovery check already detects that and opens the "set
+// password" view, so no separate landing page is needed. That redirect only actually lands on
+// this app if the target URL is allow-listed in Supabase's Auth > URL Configuration; until that's
+// set (see the dev/prod Site URL + Redirect URLs setup), Supabase silently falls back to its
+// default Site URL instead.
+async function doForgotPassword() {
+  const email = document.getElementById('nst-auth-forgot-email').value.trim();
+  const errEl = document.getElementById('nst-auth-forgot-error');
+  const sentEl = document.getElementById('nst-auth-forgot-sent');
+  errEl.textContent = '';
+  sentEl.style.display = 'none';
+  if (!email) { errEl.textContent = '請輸入電子郵件 Please enter your email.'; return; }
+  const btn = document.getElementById('nst-auth-forgot-submit');
+  btn.disabled = true; btn.textContent = '傳送中… Sending…';
+  const redirectTo = window.location.origin + window.location.pathname + window.location.search;
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+  btn.disabled = false; btn.textContent = '傳送重設連結 Send reset link';
+  if (error) { errEl.textContent = 'Error: ' + error.message; return; }
+  // Supabase doesn't reveal whether the email actually exists (avoids leaking which addresses
+  // are registered) — this same success message shows either way, matching that behavior.
+  sentEl.style.display = '';
+  btn.style.display = 'none';
 }
 
 async function doSetPassword() {

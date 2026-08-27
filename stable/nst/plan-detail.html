@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>每日行程 Day Plan — NST</title>
+<link rel="stylesheet" href="css/nst-shared.css"/>
+<style>
+  .stop-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; border: 1px solid var(--nst-border); border-radius: 9px;
+    margin-bottom: 8px; background: var(--nst-panel, #fff);
+  }
+  .stop-num {
+    width: 24px; height: 24px; border-radius: 50%; background: var(--nst-bg);
+    color: var(--nst-gray); font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .stop-main { flex: 1; min-width: 0; }
+  .stop-name { font-weight: 700; font-size: 13.5px; }
+  .stop-name a { color: inherit; text-decoration: none; }
+  .stop-name a:hover { color: var(--nst-accent); text-decoration: underline; }
+  .stop-meta { font-size: 12px; color: var(--nst-gray); margin-top: 2px; }
+  .stop-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+  .stop-actions button { background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px 6px; border-radius: 6px; color: var(--nst-gray); }
+  .stop-actions button:hover:not(:disabled) { background: var(--nst-bg); color: var(--nst-ink); }
+  .stop-actions button:disabled { opacity: .3; cursor: default; }
+  .move-day-select { font-size: 11.5px; font-weight: 600; color: var(--nst-gray); border: 1px solid var(--nst-border); border-radius: 6px; padding: 3px 4px; max-width: 110px; }
+  #shop-results { position: relative; }
+</style>
+</head>
+<body>
+
+<div id="app" style="display:none">
+  <header class="nst-header">
+    <div class="nst-header-left">
+      <a href="../../index.html"><img id="logo" class="nst-header-logo" alt="Nuvari"/></a>
+      <span class="nst-header-title">每日行程 Day Plan</span>
+    </div>
+    <div class="nst-header-right">
+      <span id="user-email" class="nst-user-email"></span>
+      <a href="../../index.html" class="nst-btn nst-btn-ghost nst-btn-sm">← Dashboard</a>
+      <button id="sign-out-btn" class="nst-btn nst-btn-ghost nst-btn-sm">登出 Sign out</button>
+    </div>
+  </header>
+
+  <nav class="nst-nav">
+    <a href="index.html">首頁 Home</a>
+    <a href="shops.html">店家資料庫 Shops</a>
+    <a href="visits.html">拜訪計劃 Visits</a>
+    <a href="planner.html" class="active">🗺️ 每日行程 Day Plans</a>
+  </nav>
+
+  <div class="nst-page">
+    <div style="margin-bottom:14px">
+      <a href="planner.html" style="font-size:13px;font-weight:700;color:var(--nst-accent-dark)">← 返回每日計劃列表 Back to day plans</a>
+    </div>
+
+    <div id="error-banner" class="nst-error-banner" style="display:none"></div>
+    <div id="loading" class="nst-loading"><div class="nst-spinner"></div>載入中 Loading…</div>
+
+    <div id="content" style="display:none">
+      <div id="readonly-note" style="display:none;font-size:12.5px;color:var(--nst-gray);margin-bottom:10px">
+        👁️ 唯讀 — 這是其他業務的計劃，你只能檢視 Read-only — this is another rep's plan, view only
+      </div>
+
+      <!-- Plan info -->
+      <div class="nst-detail-card">
+        <h2 id="plan-heading"></h2>
+        <div class="nst-field-row"><span class="label">日期 Date</span><span class="value" id="f-date"></span></div>
+        <div class="nst-field-row"><span class="label">業務代表 Rep</span><span class="value" id="f-rep"></span></div>
+        <div class="nst-field-row"><span class="label">狀態 Status</span><span class="value" id="f-status"></span></div>
+        <div class="nst-field-row"><span class="label">活動 Campaign</span><span class="value" id="f-campaign"></span></div>
+
+        <div id="status-actions" style="display:none;margin-top:16px;padding-top:14px;border-top:1px solid var(--nst-border)">
+          <div class="nst-section-label" style="margin-bottom:8px">更新狀態 Update status</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button data-status="planned"   class="nst-btn nst-btn-ghost  nst-btn-sm status-btn">📅 規劃中 Planned</button>
+            <button data-status="completed" class="nst-btn nst-btn-outline nst-btn-sm status-btn">✅ 完成 Completed</button>
+            <button data-status="cancelled" class="nst-btn nst-btn-danger nst-btn-sm status-btn" style="opacity:.7">取消 Cancel</button>
+          </div>
+        </div>
+
+        <div id="date-edit" style="display:none;margin-top:16px;padding-top:14px;border-top:1px solid var(--nst-border)">
+          <label class="nst-field-label">變更日期 Change date</label>
+          <div style="font-size:12px;color:var(--nst-gray);margin-bottom:6px">店家不一定都能配合原訂日期，隨時可調整 Shop availability doesn't always match the original date — adjust anytime</div>
+          <div style="display:flex;gap:8px">
+            <input id="f-plan-date" type="date" class="nst-input"/>
+            <button id="save-date-btn" class="nst-btn nst-btn-outline nst-btn-sm">儲存 Save</button>
+          </div>
+        </div>
+
+        <div id="rep-edit" style="display:none;margin-top:16px;padding-top:14px;border-top:1px solid var(--nst-border)">
+          <label class="nst-field-label">指派業務代表 Reassign rep</label>
+          <div style="display:flex;gap:8px">
+            <select id="f-plan-rep" class="nst-select"></select>
+            <button id="save-rep-btn" class="nst-btn nst-btn-outline nst-btn-sm">儲存 Save</button>
+          </div>
+        </div>
+
+        <div id="start-location-edit" style="display:none;margin-top:16px;padding-top:14px;border-top:1px solid var(--nst-border)">
+          <label class="nst-field-label">起始位置 Start location (lat,lng or address)</label>
+          <div id="start-location-label" style="font-size:12.5px;color:var(--nst-accent-dark);font-weight:600;margin-bottom:6px;display:none">📍</div>
+          <div style="display:flex;gap:8px">
+            <input id="f-start-location" type="text" class="nst-input"/>
+            <button id="save-start-btn" class="nst-btn nst-btn-outline nst-btn-sm">儲存 Save</button>
+            <button id="reset-start-btn" class="nst-btn nst-btn-ghost nst-btn-sm" style="display:none">重設為辦公室 Reset to office</button>
+          </div>
+        </div>
+
+        <div id="notes-edit-wrap" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--nst-border)">
+          <label class="nst-field-label">備註 Notes</label>
+          <div id="notes-view">
+            <div id="notes-content" style="font-size:13.5px;white-space:pre-wrap;line-height:1.6;min-height:24px"></div>
+            <button id="edit-notes-btn" class="nst-btn nst-btn-ghost nst-btn-sm" style="margin-top:8px;display:none">✏️ 編輯備註 Edit</button>
+          </div>
+          <div id="notes-edit" style="display:none">
+            <textarea id="notes-textarea" class="nst-textarea"></textarea>
+            <div style="display:flex;gap:8px;margin-top:10px;justify-content:flex-end">
+              <button id="notes-cancel-btn" class="nst-btn nst-btn-ghost nst-btn-sm">取消 Cancel</button>
+              <button id="notes-save-btn" class="nst-btn nst-btn-primary nst-btn-sm">儲存 Save</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="delete-plan-wrap" style="display:none;margin-top:16px;padding-top:14px;border-top:1px solid var(--nst-border);text-align:right">
+          <button id="delete-plan-btn" class="nst-btn nst-btn-danger nst-btn-sm">🗑 刪除計劃 Delete plan</button>
+        </div>
+      </div>
+
+      <!-- Stops -->
+      <div class="nst-detail-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <h2 style="margin:0">拜訪順序 Stops</h2>
+          <button id="auto-order-btn" class="nst-btn nst-btn-outline nst-btn-sm" style="display:none">🔀 自動排序最佳路線 Auto-order route</button>
+        </div>
+
+        <div id="add-shop-wrap" style="display:none;margin:12px 0 16px">
+          <label class="nst-field-label">新增店家 Add a shop</label>
+          <input id="shop-search" type="text" class="nst-input" placeholder="搜尋店家名稱 Search shop name…"/>
+          <div id="shop-results" style="margin-top:6px;max-height:220px;overflow-y:auto;border:1px solid var(--nst-border);border-radius:9px;display:none"></div>
+        </div>
+
+        <div id="stops-list"></div>
+      </div>
+
+      <!-- Route -->
+      <div class="nst-detail-card">
+        <h2>路線 Route</h2>
+        <div id="route-empty" style="font-size:13px;color:var(--nst-gray)">新增至少一個店家以產生路線 Add at least one shop to generate a route</div>
+        <a id="route-link" href="#" target="_blank" rel="noopener" class="nst-btn nst-btn-primary" style="display:none">🗺️ 開啟 Google 地圖路線 Open Google Maps route</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="save-toast" style="display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--nst-ink,#1D2420);color:#fff;font-size:12.5px;font-weight:600;padding:8px 16px;border-radius:999px;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:9999">✓ 已自動儲存 Auto-saved</div>
+
+<script type="module">
+import { requireAuth, signOut } from './js/auth.js';
+import { LOGO } from './js/logo.js';
+import { getPlan, updatePlan, deletePlan, addStop, removeStop, reorderStops, loadPlans, PLAN_STATUS_LABELS } from './js/planner.js';
+import { addVisit } from './js/visits.js';
+import { loadShops, loadUserDirectory, repLabel, loadCampaigns, STATUS_LABELS, PRIORITY_LABELS } from './js/shops.js';
+import { canAssignToOthers } from '../shared/delete-policy.js';
+import { buildRouteUrl, shopMapsUrl, nearestNeighborFromStart, parseStartLocation, DEFAULT_START_LOCATION, DEFAULT_START_LOCATION_LABEL } from '../shared/route-planning.js';
+
+document.getElementById('logo').src = LOGO;
+document.getElementById('start-location-label').textContent = `📍 ${DEFAULT_START_LOCATION_LABEL}`;
+
+const user = await requireAuth();
+document.getElementById('app').style.display = '';
+document.getElementById('user-email').textContent = user.email;
+document.getElementById('sign-out-btn').addEventListener('click', signOut);
+
+const params = new URLSearchParams(location.search);
+const planId = params.get('id');
+if (!planId) { location.href = 'planner.html'; }
+
+let plan = null;
+let repsById = {};
+let campaignsById = {};
+let siblingPlans = []; // other day-plans in the same campaign — lets a stop move to a different day
+const isEditable = () => plan && (plan.rep_id === user.id || canAssignToOthers(user.email));
+const isAdmin = () => canAssignToOthers(user.email);
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmtDate(d) {
+  if (!d) return '—';
+  return new Date(d + 'T00:00:00').toLocaleDateString('zh-TW', { year:'numeric', month:'long', day:'numeric', weekday:'long' });
+}
+function fmtDateShort(d) {
+  if (!d) return '—';
+  return new Date(d + 'T00:00:00').toLocaleDateString('zh-TW', { month:'2-digit', day:'2-digit', weekday:'short' });
+}
+function planStatusBadge(s) {
+  const info = PLAN_STATUS_LABELS[s] || { zh: s, en: s, color: 'badge-gray' };
+  return `<span class="nst-badge ${info.color}">${info.zh} ${info.en}</span>`;
+}
+function shopStatusBadge(s) {
+  const info = STATUS_LABELS[s] || { zh: s, en: s, color: 'badge-gray' };
+  return `<span class="nst-badge ${info.color}" style="font-size:10px">${info.zh}</span>`;
+}
+function priorityBadge(p) {
+  if (!p) return '';
+  const info = PRIORITY_LABELS[p];
+  return info ? `<span class="nst-badge ${info.color}" style="font-size:10px">${info.zh}</span>` : '';
+}
+
+// Every stop/status/notes/location edit below saves immediately — there's no separate "Save"
+// button and no draft state to lose. This toast is the visible confirmation that it happened.
+let toastTimer;
+function showSavedToast() {
+  const toast = document.getElementById('save-toast');
+  clearTimeout(toastTimer);
+  toast.style.display = '';
+  toastTimer = setTimeout(() => { toast.style.display = 'none'; }, 1600);
+}
+
+// The start_location field stores raw "lat,lng" (or a freeform address) — this just labels it in
+// plain language when it's the untouched depot default, and offers a one-click way back to it.
+function updateStartLocationLabel() {
+  const val = document.getElementById('f-start-location').value.trim();
+  const isDefault = val === DEFAULT_START_LOCATION;
+  document.getElementById('start-location-label').style.display = isDefault ? '' : 'none';
+  document.getElementById('reset-start-btn').style.display = isDefault ? 'none' : '';
+}
+
+try {
+  const [dir, camps] = await Promise.all([loadUserDirectory(), loadCampaigns()]);
+  dir.forEach(u => { repsById[u.id] = u.email; });
+  camps.forEach(c => { campaignsById[c.id] = c; });
+} catch (e) { /* non-fatal — plan still renders without rep/campaign names */ }
+
+function renderRoute() {
+  const stops = plan.visit_plan_stops.filter(s => s.shops && s.shops.lat != null && s.shops.lng != null);
+  const link = document.getElementById('route-link');
+  const empty = document.getElementById('route-empty');
+  if (!stops.length) {
+    link.style.display = 'none';
+    empty.style.display = '';
+    return;
+  }
+  const url = buildRouteUrl(plan.start_location, stops.map(s => s.shops));
+  link.href = url;
+  link.style.display = '';
+  empty.style.display = 'none';
+}
+
+function renderStops() {
+  const list = document.getElementById('stops-list');
+  const stops = plan.visit_plan_stops;
+  const editable = isEditable();
+  if (!stops.length) {
+    list.innerHTML = `<div class="nst-empty" style="padding:20px 0">
+      <p style="margin:0">尚無店家 No stops yet</p>
+      ${editable ? '<div class="sub">在下方搜尋並新增店家 Search below to add one</div>' : ''}
+    </div>`;
+  } else {
+    list.innerHTML = stops.map((stop, i) => {
+      const shop = stop.shops;
+      if (!shop) return '';
+      const mapsUrl = shopMapsUrl(shop);
+      const visited = !!stop.visit_id;
+      return `<div class="stop-row" data-stop-id="${stop.id}">
+        <div class="stop-num">${i + 1}</div>
+        <div class="stop-main">
+          <div class="stop-name">
+            ${mapsUrl ? `<a href="${esc(mapsUrl)}" target="_blank" rel="noopener">${esc(shop.name)}</a>` : esc(shop.name)}
+            ${shopStatusBadge(shop.status)} ${priorityBadge(shop.priority)}
+          </div>
+          <div class="stop-meta">${shop.address ? esc(shop.address) : '—'}${shop.county ? ` · ${esc(shop.county)}` : ''}</div>
+        </div>
+        <div class="stop-actions">
+          ${visited
+            ? `<a href="visit-detail.html?id=${stop.visit_id}" class="nst-btn nst-btn-ghost nst-btn-sm">✅ 已拜訪 Visited</a>`
+            : (editable ? `<button class="mark-visited-btn nst-btn nst-btn-outline nst-btn-sm" data-shop-id="${shop.id}" data-stop-id="${stop.id}">標記已拜訪 Mark visited</button>` : '')}
+          ${(editable && siblingPlans.length) ? `<select class="move-day-select" data-stop-id="${stop.id}" data-shop-id="${shop.id}" title="移至其他天 Move to a different day">
+            <option value="">↷ 移至... Move to</option>
+            ${siblingPlans.map(p => `<option value="${p.id}">${fmtDateShort(p.plan_date)}</option>`).join('')}
+          </select>` : ''}
+          ${editable ? `<button class="move-up-btn" title="上移 Move up" ${i === 0 ? 'disabled' : ''}>↑</button>` : ''}
+          ${editable ? `<button class="move-down-btn" title="下移 Move down" ${i === stops.length - 1 ? 'disabled' : ''}>↓</button>` : ''}
+          ${editable ? `<button class="remove-stop-btn" title="移除 Remove">✕</button>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('add-shop-wrap').style.display = editable ? '' : 'none';
+  const geocodedCount = stops.filter(s => s.shops && s.shops.lat != null && s.shops.lng != null).length;
+  document.getElementById('auto-order-btn').style.display = (editable && geocodedCount >= 2) ? '' : 'none';
+  renderRoute();
+}
+
+function render() {
+  const editable = isEditable();
+  document.getElementById('readonly-note').style.display = editable ? 'none' : '';
+  document.getElementById('plan-heading').textContent = fmtDate(plan.plan_date);
+  document.getElementById('f-date').textContent = fmtDate(plan.plan_date);
+  document.getElementById('f-rep').textContent = plan.rep_id === user.id ? `${user.email} (你 / you)` : (repLabel(repsById[plan.rep_id]) || plan.rep_id);
+  document.getElementById('f-status').innerHTML = planStatusBadge(plan.status);
+  const campaign = plan.campaign_id ? campaignsById[plan.campaign_id] : null;
+  document.getElementById('f-campaign').textContent = campaign ? campaign.name : '—';
+
+  document.querySelectorAll('.status-btn').forEach(btn => {
+    btn.style.opacity = btn.dataset.status === plan.status ? '.4' : '';
+    btn.disabled = btn.dataset.status === plan.status;
+  });
+
+  const notesContent = document.getElementById('notes-content');
+  notesContent.innerHTML = plan.notes ? esc(plan.notes) : '<span style="color:var(--nst-gray);font-style:italic">尚無備註 No notes yet</span>';
+
+  if (editable) {
+    document.getElementById('status-actions').style.display = '';
+    document.getElementById('date-edit').style.display = '';
+    document.getElementById('f-plan-date').value = plan.plan_date;
+    document.getElementById('start-location-edit').style.display = '';
+    document.getElementById('f-start-location').value = plan.start_location || '';
+    updateStartLocationLabel();
+    document.getElementById('edit-notes-btn').style.display = '';
+    document.getElementById('delete-plan-wrap').style.display = '';
+  }
+
+  if (isAdmin()) {
+    document.getElementById('rep-edit').style.display = '';
+    const repSelect = document.getElementById('f-plan-rep');
+    repSelect.innerHTML = Object.entries(repsById)
+      .map(([id, email]) => `<option value="${id}">${esc(repLabel(email))}</option>`).join('');
+    repSelect.value = plan.rep_id;
+  }
+
+  renderStops();
+}
+
+async function loadSiblingPlans() {
+  if (!plan.campaign_id) { siblingPlans = []; return; }
+  try {
+    const all = await loadPlans({ campaignId: plan.campaign_id });
+    siblingPlans = all.filter(p => p.id !== planId).sort((a, b) => a.plan_date.localeCompare(b.plan_date));
+  } catch (e) { siblingPlans = []; }
+}
+
+async function load() {
+  try {
+    plan = await getPlan(planId);
+    await loadSiblingPlans();
+    render();
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('content').style.display = '';
+  } catch (e) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('error-banner').textContent = e.message;
+    document.getElementById('error-banner').style.display = '';
+  }
+}
+await load();
+
+// Status actions
+document.querySelectorAll('.status-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try { plan = await updatePlan(planId, { status: btn.dataset.status }); render(); showSavedToast(); }
+    catch (e) { document.getElementById('error-banner').textContent = e.message; document.getElementById('error-banner').style.display = ''; btn.disabled = false; }
+  });
+});
+
+// Date — a shop owner isn't always free on the originally-planned day, so the whole plan's date
+// (not just which stops are on it) needs to stay adjustable, not fixed at creation.
+document.getElementById('save-date-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('save-date-btn');
+  const val = document.getElementById('f-plan-date').value;
+  if (!val) return;
+  btn.disabled = true; btn.textContent = '儲存中…';
+  try {
+    plan = await updatePlan(planId, { plan_date: val });
+    await loadSiblingPlans();
+    render();
+    showSavedToast();
+  } catch (e) { document.getElementById('error-banner').textContent = e.message; document.getElementById('error-banner').style.display = ''; }
+  finally { btn.disabled = false; btn.textContent = '儲存 Save'; }
+});
+
+// Reassign rep — admin-only (canAssignToOthers), same gate as creating a plan for someone else.
+document.getElementById('save-rep-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('save-rep-btn');
+  const val = document.getElementById('f-plan-rep').value;
+  if (!val) return;
+  btn.disabled = true; btn.textContent = '儲存中…';
+  try { plan = await updatePlan(planId, { rep_id: val }); render(); showSavedToast(); }
+  catch (e) { document.getElementById('error-banner').textContent = e.message; document.getElementById('error-banner').style.display = ''; }
+  finally { btn.disabled = false; btn.textContent = '儲存 Save'; }
+});
+
+// Start location
+document.getElementById('f-start-location').addEventListener('input', updateStartLocationLabel);
+
+document.getElementById('save-start-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('save-start-btn');
+  const val = document.getElementById('f-start-location').value.trim();
+  btn.disabled = true; btn.textContent = '儲存中…';
+  try { plan = await updatePlan(planId, { start_location: val }); renderRoute(); updateStartLocationLabel(); showSavedToast(); }
+  catch (e) { document.getElementById('error-banner').textContent = e.message; document.getElementById('error-banner').style.display = ''; }
+  finally { btn.disabled = false; btn.textContent = '儲存 Save'; }
+});
+
+document.getElementById('reset-start-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('reset-start-btn');
+  btn.disabled = true;
+  try {
+    plan = await updatePlan(planId, { start_location: DEFAULT_START_LOCATION });
+    document.getElementById('f-start-location').value = DEFAULT_START_LOCATION;
+    updateStartLocationLabel();
+    renderRoute();
+    showSavedToast();
+  } catch (e) { document.getElementById('error-banner').textContent = e.message; document.getElementById('error-banner').style.display = ''; }
+  finally { btn.disabled = false; }
+});
+
+// Notes
+document.getElementById('edit-notes-btn').addEventListener('click', () => {
+  document.getElementById('notes-textarea').value = plan.notes || '';
+  document.getElementById('notes-view').style.display = 'none';
+  document.getElementById('notes-edit').style.display = '';
+});
+document.getElementById('notes-cancel-btn').addEventListener('click', () => {
+  document.getElementById('notes-view').style.display = '';
+  document.getElementById('notes-edit').style.display = 'none';
+});
+document.getElementById('notes-save-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('notes-save-btn');
+  const notes = document.getElementById('notes-textarea').value.trim();
+  btn.disabled = true; btn.textContent = '儲存中…';
+  try {
+    plan = await updatePlan(planId, { notes: notes || null });
+    document.getElementById('notes-view').style.display = '';
+    document.getElementById('notes-edit').style.display = 'none';
+    render();
+    showSavedToast();
+  } catch (e) { document.getElementById('error-banner').textContent = e.message; document.getElementById('error-banner').style.display = ''; }
+  finally { btn.disabled = false; btn.textContent = '儲存 Save'; }
+});
+
+// Delete plan
+document.getElementById('delete-plan-btn').addEventListener('click', async () => {
+  if (!confirm('刪除這個每日計劃？此動作無法復原。\nDelete this day plan? This cannot be undone.')) return;
+  const btn = document.getElementById('delete-plan-btn');
+  btn.disabled = true;
+  try { await deletePlan(planId); location.href = 'planner.html'; }
+  catch (e) { document.getElementById('error-banner').textContent = e.message; document.getElementById('error-banner').style.display = ''; btn.disabled = false; }
+});
+
+// Stop actions: move / remove / mark visited
+document.getElementById('stops-list').addEventListener('click', async e => {
+  const row = e.target.closest('.stop-row');
+  if (!row) return;
+  const stopId = row.dataset.stopId;
+  const stops = plan.visit_plan_stops;
+  const idx = stops.findIndex(s => s.id === stopId);
+
+  if (e.target.classList.contains('move-up-btn') && idx > 0) {
+    [stops[idx - 1], stops[idx]] = [stops[idx], stops[idx - 1]];
+    renderStops();
+    try { await reorderStops(stops.map(s => s.id)); showSavedToast(); } catch (err) { document.getElementById('error-banner').textContent = err.message; document.getElementById('error-banner').style.display = ''; }
+  } else if (e.target.classList.contains('move-down-btn') && idx < stops.length - 1) {
+    [stops[idx], stops[idx + 1]] = [stops[idx + 1], stops[idx]];
+    renderStops();
+    try { await reorderStops(stops.map(s => s.id)); showSavedToast(); } catch (err) { document.getElementById('error-banner').textContent = err.message; document.getElementById('error-banner').style.display = ''; }
+  } else if (e.target.classList.contains('remove-stop-btn')) {
+    e.target.disabled = true;
+    try {
+      await removeStop(stopId);
+      plan.visit_plan_stops = stops.filter(s => s.id !== stopId);
+      renderStops();
+      showSavedToast();
+    } catch (err) { document.getElementById('error-banner').textContent = err.message; document.getElementById('error-banner').style.display = ''; e.target.disabled = false; }
+  } else if (e.target.classList.contains('mark-visited-btn')) {
+    // Decision 3 (plan artifact): marking a stop "visited" always opens the full visit
+    // form — no one-tap shortcut — so quota progress and history stay backed by real notes/
+    // photos rather than a placeholder nobody fills in later.
+    e.target.disabled = true;
+    e.target.textContent = '建立中…';
+    try {
+      const visit = await addVisit({ shop_id: e.target.dataset.shopId, scheduled_date: plan.plan_date, status: 'completed' }, user.id);
+      location.href = `visit-detail.html?id=${visit.id}`;
+    } catch (err) {
+      document.getElementById('error-banner').textContent = err.message;
+      document.getElementById('error-banner').style.display = '';
+      e.target.disabled = false; e.target.textContent = '標記已拜訪 Mark visited';
+    }
+  }
+});
+
+// Move a stop to a different day-plan within the same campaign — a shop owner isn't always free
+// on the day it landed on, so this is a straight remove-from-here/add-there rather than requiring
+// a trip to the other plan's page. The stop's own visit_id (if it was already marked visited)
+// deliberately does NOT carry over — a completed visit stays tied to the day it actually happened.
+document.getElementById('stops-list').addEventListener('change', async e => {
+  if (!e.target.classList.contains('move-day-select')) return;
+  const sel = e.target;
+  const targetPlanId = sel.value;
+  if (!targetPlanId) return;
+  const stopId = sel.dataset.stopId;
+  const shopId = sel.dataset.shopId;
+  sel.disabled = true;
+  try {
+    const targetPlan = await getPlan(targetPlanId);
+    await addStop(targetPlanId, shopId, targetPlan.visit_plan_stops.length);
+    await removeStop(stopId);
+    plan.visit_plan_stops = plan.visit_plan_stops.filter(s => s.id !== stopId);
+    renderStops();
+    showSavedToast();
+  } catch (err) {
+    document.getElementById('error-banner').textContent = err.message;
+    document.getElementById('error-banner').style.display = '';
+    sel.disabled = false; sel.value = '';
+  }
+});
+
+// Add shop search
+let allShops = [];
+let shopsLoaded = false;
+let shopSearchTimer;
+
+document.getElementById('shop-search').addEventListener('focus', async () => {
+  if (shopsLoaded) return;
+  try { allShops = await loadShops(); shopsLoaded = true; } catch (e) {}
+});
+
+document.getElementById('shop-search').addEventListener('input', () => {
+  clearTimeout(shopSearchTimer);
+  shopSearchTimer = setTimeout(() => {
+    const q = document.getElementById('shop-search').value.trim().toLowerCase();
+    const resultsEl = document.getElementById('shop-results');
+    if (!q) { resultsEl.style.display = 'none'; return; }
+    const alreadyIn = new Set(plan.visit_plan_stops.map(s => s.shop_id));
+    const filtered = allShops.filter(s => s.name.toLowerCase().includes(q) && !alreadyIn.has(s.id)).slice(0, 8);
+    if (!filtered.length) {
+      resultsEl.innerHTML = '<div style="padding:10px 12px;font-size:13px;color:var(--nst-gray)">找不到店家 No shops found</div>';
+    } else {
+      resultsEl.innerHTML = filtered.map(s => `
+        <div class="shop-result-item" data-id="${s.id}" data-name="${esc(s.name)}"
+             style="padding:10px 12px;cursor:pointer;font-size:13.5px;border-bottom:1px solid var(--nst-border)">
+          <strong>${esc(s.name)}</strong>
+          ${s.address ? `<span style="color:var(--nst-gray);font-size:12px"> · ${esc(s.address)}</span>` : ''}
+        </div>`).join('');
+    }
+    resultsEl.style.display = '';
+  }, 200);
+});
+
+document.getElementById('shop-results').addEventListener('click', async e => {
+  const item = e.target.closest('.shop-result-item');
+  if (!item) return;
+  const nextOrder = plan.visit_plan_stops.length;
+  try {
+    const stop = await addStop(planId, item.dataset.id, nextOrder);
+    plan.visit_plan_stops.push(stop);
+    document.getElementById('shop-search').value = '';
+    document.getElementById('shop-results').style.display = 'none';
+    renderStops();
+    showSavedToast();
+  } catch (err) {
+    document.getElementById('error-banner').textContent = err.message;
+    document.getElementById('error-banner').style.display = '';
+  }
+});
+
+// Auto-order: nearest-neighbor route anchored to the plan's start location. Stops without
+// coordinates (lat/lng never geocoded) can't be placed by distance, so they're left in place at
+// the end, after every geocoded stop has been ordered.
+document.getElementById('auto-order-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('auto-order-btn');
+  const stops = plan.visit_plan_stops;
+  const geocoded = stops.filter(s => s.shops && s.shops.lat != null && s.shops.lng != null);
+  const ungeocoded = stops.filter(s => !(s.shops && s.shops.lat != null && s.shops.lng != null));
+  if (geocoded.length < 2) return;
+
+  const start = parseStartLocation(plan.start_location) || { lat: geocoded[0].shops.lat, lng: geocoded[0].shops.lng };
+  btn.disabled = true; btn.textContent = '排序中…';
+  try {
+    const orderedShops = nearestNeighborFromStart(start, geocoded.map(s => s.shops));
+    const orderedStops = orderedShops.map(shop => geocoded.find(s => s.shops.id === shop.id));
+    plan.visit_plan_stops = [...orderedStops, ...ungeocoded];
+    renderStops();
+    await reorderStops(plan.visit_plan_stops.map(s => s.id));
+    showSavedToast();
+  } catch (err) {
+    document.getElementById('error-banner').textContent = err.message;
+    document.getElementById('error-banner').style.display = '';
+  } finally {
+    btn.disabled = false; btn.textContent = '🔀 自動排序最佳路線 Auto-order route';
+  }
+});
+</script>
+</body>
+</html>
