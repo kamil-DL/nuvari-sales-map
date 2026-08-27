@@ -164,6 +164,10 @@ export const STATUS_LABELS = {
   '拜訪過-拒絕': { zh: '拜訪過-拒絕', en: 'Visited (Declined)',        color: 'badge-red' },
   '已合作':      { zh: '已合作',      en: 'Partnered',                 color: 'badge-green' },
   '已合作-流失': { zh: '已合作-流失', en: 'Partnered (Churned)',       color: 'badge-purple' },
+  // Inbound lead — the shop reached out wanting to partner, rather than us visiting/cold-calling
+  // them. Sits outside the main 尚未開發→…→已合作 pipeline shape (no phone/visit step implied),
+  // so it isn't nested under 拜訪過 like the other "-有意願" status.
+  '主動要合作-有意願': { zh: '主動要合作-有意願', en: 'Inbound (Interested)', color: 'badge-pink' },
 };
 
 // Priority is independent of pipeline status — flags which shops to talk to first when

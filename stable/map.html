@@ -573,6 +573,9 @@ const STATUS_STYLE={
   '拜訪過-拒絕': {color:'#D93025',bg:'#FEE8E7',label:'拜訪過-拒絕 Visited (Declined)'},
   '已合作':      {color:'#0B8E6A',bg:'#E6F9F4',label:'已合作 Partnered'},
   '已合作-流失': {color:'#7C3AED',bg:'#F2ECFB',label:'已合作-流失 Partnered (Churned)'},
+  // Inbound lead — the shop reached out wanting to partner, rather than us visiting/cold-calling
+  // them (see nst/js/shops.js STATUS_LABELS for the matching NST-side entry/rationale).
+  '主動要合作-有意願': {color:'#DB2777',bg:'#FCE7F3',label:'主動要合作-有意願 Inbound (Interested)'},
   'default':     {color:'#798BA5',bg:'#EDEFF2',label:'其他 Other'},
 };
 function statusStyle(s){ return STATUS_STYLE[s]||STATUS_STYLE['default']; }
@@ -2055,7 +2058,7 @@ function renderShopsTab(){
     ?`<div class="upload-zone" id="uploadZone">
         <div class="uz-icon">📋</div>
         <div class="uz-title">上傳資料集</div>
-        <div class="uz-sub">CSV 格式，需含 lat/GISY, lng/GISX 欄位（與 Shop DB 共用標準）<br>columns: name, status, priority, address, category, contact_name, contact_phone, notes, rating, lat, lng<br>status: 尚未開發 / 電訪過 / 電訪過-拒絕 / 拜訪過 / 拜訪過-有意願 / 拜訪過-評估中 / 拜訪過-拒絕 / 已合作 / 已合作-流失<br>priority: P1 / P2 / P3（選填）</div>
+        <div class="uz-sub">CSV 格式，需含 lat/GISY, lng/GISX 欄位（與 Shop DB 共用標準）<br>columns: name, status, priority, address, category, contact_name, contact_phone, notes, rating, lat, lng<br>status: 尚未開發 / 電訪過 / 電訪過-拒絕 / 拜訪過 / 拜訪過-有意願 / 拜訪過-評估中 / 拜訪過-拒絕 / 已合作 / 已合作-流失 / 主動要合作-有意願<br>priority: P1 / P2 / P3（選填）</div>
       </div>${dbToolbar}`
     :dbToolbar;
 

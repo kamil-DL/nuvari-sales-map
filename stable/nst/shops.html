@@ -58,6 +58,7 @@
         <option value="拜訪過-拒絕">拜訪過-拒絕 Visited (Declined)</option>
         <option value="已合作">已合作 Partnered</option>
         <option value="已合作-流失">已合作-流失 Partnered (Churned)</option>
+        <option value="主動要合作-有意願">主動要合作-有意願 Inbound (Interested)</option>
       </select>
       <select id="region-filter" class="nst-select" style="width:auto;min-width:130px">
         <option value="all">全部地區 All regions</option>
@@ -111,6 +112,7 @@
           <option value="拜訪過-拒絕">拜訪過-拒絕 Visited (Declined)</option>
           <option value="已合作">已合作 Partnered</option>
           <option value="已合作-流失">已合作-流失 Partnered (Churned)</option>
+        <option value="主動要合作-有意願">主動要合作-有意願 Inbound (Interested)</option>
         </select>
         <button id="bulk-status-apply-btn" class="nst-btn nst-btn-outline" disabled>套用 Apply</button>
         <select id="bulk-rep-select" class="nst-select" style="width:auto;min-width:170px">
@@ -166,6 +168,7 @@
         <option value="拜訪過-拒絕">拜訪過-拒絕 Visited (Declined)</option>
         <option value="已合作">已合作 Partnered</option>
         <option value="已合作-流失">已合作-流失 Partnered (Churned)</option>
+        <option value="主動要合作-有意願">主動要合作-有意願 Inbound (Interested)</option>
       </select>
       <label class="nst-field-label">優先順序 Priority</label>
       <select id="f-priority" class="nst-select">
@@ -246,7 +249,7 @@
       <div style="font-size:13px;color:var(--nst-gray);margin-bottom:14px;line-height:1.6">
         CSV 欄位（首行為標題，與地圖規劃工具共用同一標準）：<br/>
         <code style="font-size:11.5px;color:var(--nst-ink)">name, status, priority, address, contact_name, contact_phone, sales_rep, notes, lat/GISY, lng/GISX</code><br/>
-        <span style="font-size:12px">status 可填：尚未開發 / 電訪過 / 電訪過-拒絕 / 拜訪過 / 拜訪過-有意願 / 拜訪過-評估中 / 拜訪過-拒絕 / 已合作 / 已合作-流失（預設 尚未開發）</span><br/>
+        <span style="font-size:12px">status 可填：尚未開發 / 電訪過 / 電訪過-拒絕 / 拜訪過 / 拜訪過-有意願 / 拜訪過-評估中 / 拜訪過-拒絕 / 已合作 / 已合作-流失 / 主動要合作-有意願（預設 尚未開發）</span><br/>
         <span style="font-size:12px">priority 可填：P1 / P2 / P3（可留空 optional）</span><br/>
         <span style="font-size:12px">也會儲存：地區、縣市、鄉鎮市區、座標狀態、category、google_* 等欄位 · Also stored: region/county/district/coord_status/category/google_* columns if present</span><br/>
         <span style="font-size:12px">資料集在下方選擇，不是 CSV 欄位 · Dataset is chosen below, not a CSV column</span>
@@ -1073,7 +1076,7 @@ await Promise.all([loadFilterOptions(), refreshDatasets(), refreshCampaigns()]);
 await refresh();
 
 // ── CSV Import ──
-const VALID_STATUSES = new Set(['尚未開發','電訪過','電訪過-拒絕','拜訪過','拜訪過-有意願','拜訪過-評估中','拜訪過-拒絕','已合作','已合作-流失']);
+const VALID_STATUSES = new Set(['尚未開發','電訪過','電訪過-拒絕','拜訪過','拜訪過-有意願','拜訪過-評估中','拜訪過-拒絕','已合作','已合作-流失','主動要合作-有意願']);
 const VALID_PRIORITIES = new Set(['P1','P2','P3']);
 let csvRows = [];
 let csvDupMatches = []; // parallel to csvRows — matched existing shop {name,address} or null
