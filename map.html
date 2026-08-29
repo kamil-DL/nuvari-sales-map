@@ -521,12 +521,12 @@ window.onPwGatePassed=async function(){
     <div id="version-footer" style="position:absolute;bottom:6px;left:8px;z-index:500;font-size:10px;color:#8A92A0;background:rgba(255,255,255,0.85);padding:2px 8px;border-radius:5px;pointer-events:none;font-family:-apple-system,sans-serif;"></div>
     <div class="sidebar">
       <div class="sidebar-tabs">
-        <button class="active" data-tab="stats">數據 Stats</button>
-        <button data-tab="shops">資料集 Datasets <span id="shopTabBadge"></span></button>
+        <button class="active" data-tab="shops">資料集 Datasets <span id="shopTabBadge"></span></button>
+        <button data-tab="stats">數據 Stats</button>
         <button data-tab="scenarios">方案 Scenarios</button>
       </div>
-      <div id="tab-stats" class="tab-panel active"></div>
-      <div id="tab-shops" class="tab-panel"></div>
+      <div id="tab-shops" class="tab-panel active"></div>
+      <div id="tab-stats" class="tab-panel"></div>
       <div id="tab-scenarios" class="tab-panel">
         <div class="scenario-form">
           <input type="text" id="scenarioNameInput" placeholder="方案名稱 e.g. 北中10km初稿…"/>
@@ -2238,13 +2238,13 @@ function renderShopsTab(){
     }).join('');
     // All applicable filter groups for this layer, gated by kind — collapsed behind the "⚙ 篩選"
     // button, and each group is its own accordion section within that panel (see filterSection).
-    const priorityColorBtn=`<button class="btn layer-priority-color-btn" data-lid="${esc(layer.id)}" style="font-size:9px;padding:1px 6px;${layer.colorByPriority?'background:var(--accent-light);border-color:var(--accent);color:var(--accent);':''}">🎨 依優先順序著色</button>`;
-    // Mutually exclusive with the priority toggle above (see the click handlers — turning one
-    // on clears the other) so a layer's pins only ever follow one color scheme at a time.
-    const brandColorBtn=`<button class="btn layer-brand-color-btn" data-lid="${esc(layer.id)}" style="font-size:9px;padding:1px 6px;margin-left:4px;${layer.colorByBrand?'background:var(--accent-light);border-color:var(--accent);color:var(--accent);':''}">🎨 依品牌著色 (Merida綠/GIANT藍)</button>`;
+    // The color-mode toggles used to live inside this "優先順序" section as an extra button —
+    // moved out to the always-visible row below (see colorModeBtns) since they're a display
+    // mode, not a filter, and being buried behind two layers of accordion state meant nobody
+    // could find the brand-color toggle without first expanding both.
     const filterGroups=[
       showStatus?filterSection(layer,'狀態','statusFilters',statChips,layer.statusFilters.size,statuses.length):'',
-      showStatus?filterSection(layer,'優先順序','priorityFilters',priorityChips,layer.priorityFilters.size,PRIORITY_ORDER.length,priorityColorBtn+brandColorBtn):'',
+      showStatus?filterSection(layer,'優先順序','priorityFilters',priorityChips,layer.priorityFilters.size,PRIORITY_ORDER.length):'',
       // 業務員 moved up here (was below 地區/縣市) — who's responsible gets checked at least as
       // often as status/priority when planning, so it shouldn't be buried under location filters.
       (showSalesRepAndTier&&salesReps.length)?filterSection(layer,'業務員','salesRepFilters',salesRepChips,layer.salesRepFilters.size,salesRepKeys.length):'',
@@ -2272,6 +2272,10 @@ function renderShopsTab(){
           <button class="btn layer-zoom-btn" data-lid="${esc(layer.id)}" title="縮放地圖至目前篩選出的店家" style="font-size:10.5px;padding:3px 9px;">🔍 縮放</button>
           <button class="btn layer-filters-btn" data-lid="${esc(layer.id)}" style="font-size:10.5px;padding:3px 9px;${filtersOpen?'background:var(--accent-light);border-color:var(--accent);color:var(--accent);':''}">⚙ 篩選${filtersOpen?' ▾':' ▸'}</button>
         </div>
+      </div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:${filtersOpen?'8px':'0'};">
+        <button class="btn layer-priority-color-btn" data-lid="${esc(layer.id)}" style="font-size:9px;padding:2px 7px;${layer.colorByPriority?'background:var(--accent-light);border-color:var(--accent);color:var(--accent);':''}">🎨 依優先順序著色</button>
+        <button class="btn layer-brand-color-btn" data-lid="${esc(layer.id)}" style="font-size:9px;padding:2px 7px;${layer.colorByBrand?'background:var(--accent-light);border-color:var(--accent);color:var(--accent);':''}">🎨 依品牌著色 (Merida綠/GIANT藍)</button>
       </div>
       ${filtersOpen?`<div class="layer-filters-panel">${filterGroups}</div>`:''}
     </div>`;
