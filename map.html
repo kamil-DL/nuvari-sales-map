@@ -280,14 +280,25 @@ function canDeleteShops(email){ return email===SHOP_DELETE_ALLOWED_EMAIL; }
 
 // Sales-rep options for the Shop-DB popup's edit form — loaded once at boot from the same
 // public.user_directory view NST's dropdowns use (real registered accounts, not freeform text).
+// marketing@datalake-tech.com is a real login but not a sales rep — excluded here (kept in sync
+// with nst/js/shops.js's own copy of this same exclusion/mapping).
+const NON_REP_EMAILS=new Set(['marketing@datalake-tech.com']);
 let repDirectory=[];
 async function loadRepDirectory(){
   try{
     const{data,error}=await sbClient.from('user_directory').select('id,email').order('email');
-    if(!error&&data)repDirectory=data;
+    if(!error&&data)repDirectory=data.filter(u=>!NON_REP_EMAILS.has(u.email));
   }catch(e){}
 }
-function repLabel(email){return email?email.split('@')[0]:'';}
+// Simple first-name labels so dropdowns/chips read "Kamil" rather than "kamil.wysocki" — falls
+// back to the pre-@ handle for anyone not in this map (see nst/js/shops.js REP_DISPLAY_NAMES).
+const REP_DISPLAY_NAMES={
+  'kamil.wysocki@datalake-tech.com':'Kamil',
+  'rainlee@datalake-tech.com':'Rain',
+  'victor.luo@datalake-tech.com':'Victor',
+  'devin.yao@datalake-tech.com':'Devin',
+};
+function repLabel(email){return email?(REP_DISPLAY_NAMES[email]||email.split('@')[0]):'';}
 function repOptionsHtml(current){
   const opts=repDirectory.map(u=>repLabel(u.email)).filter((v,i,a)=>a.indexOf(v)===i);
   let html=`<option value=""${!current?' selected':''}>未指派 Unassigned</option>`;
@@ -2213,12 +2224,14 @@ function renderShopsTab(){
     const filterGroups=[
       showStatus?filterSection(layer,'狀態','statusFilters',statChips,layer.statusFilters.size,statuses.length):'',
       showStatus?filterSection(layer,'優先順序','priorityFilters',priorityChips,layer.priorityFilters.size,PRIORITY_ORDER.length,priorityColorBtn):'',
+      // 業務員 moved up here (was below 地區/縣市) — who's responsible gets checked at least as
+      // often as status/priority when planning, so it shouldn't be buried under location filters.
+      (showSalesRepAndTier&&salesReps.length)?filterSection(layer,'業務員','salesRepFilters',salesRepChips,layer.salesRepFilters.size,salesRepKeys.length):'',
       (showSalesRepAndTier&&ratingGroups.length)?filterSection(layer,'店家等級','ratingFilters',ratingChips,layer.ratingFilters.size,ratingTierKeys.length):'',
       showRatingFilters?filterSection(layer,'Google 評分','gRatingBucketFilters',gRatingChips,layer.gRatingBucketFilters.size,GRATING_BUCKETS.length):'',
       showRatingFilters?filterSection(layer,'Google 評論數','rCountBucketFilters',rCountChips,layer.rCountBucketFilters.size,RCOUNT_BUCKETS.length):'',
       regions.length?filterSection(layer,'地區','regionFilters',regionChips,layer.regionFilters.size,regionKeys.length):'',
       counties.length?filterSection(layer,'縣市','countyFilters',countyChips,layer.countyFilters.size,countyKeys.length):'',
-      (showSalesRepAndTier&&salesReps.length)?filterSection(layer,'業務員','salesRepFilters',salesRepChips,layer.salesRepFilters.size,salesRepKeys.length):'',
       isMerida?filterSection(layer,'美利達 OEM','meridaOemFilters',meridaOemChips,layer.meridaOemFilters.size,2):'',
       campaignIds.length?filterSection(layer,'計畫','campaignFilters',campaignChips,layer.campaignFilters.size,campaignChipKeys.length):''
     ].filter(Boolean).join('');

@@ -75,14 +75,30 @@ export async function deleteShop(id) {
 
 // Sales reps are drawn from actual registered users (public.user_directory, a view over
 // auth.users) rather than freeform text, so the dropdown always reflects who can actually log in.
+// marketing@datalake-tech.com is a real login but not a sales rep — excluded from rep dropdowns
+// everywhere (kept in sync with map.html's own copy of this same exclusion/mapping).
+const NON_REP_EMAILS = new Set(['marketing@datalake-tech.com']);
+
 export async function loadUserDirectory() {
   const { data, error } = await supabase.from('user_directory').select('id, email').order('email');
   if (error) throw error;
-  return data;
+  return (data || []).filter(u => !NON_REP_EMAILS.has(u.email));
 }
 
+// Simple first-name labels for the reps who actually run visits/day-plans, so dropdowns and
+// badges read "Kamil" rather than "kamil.wysocki". Falls back to the pre-@ handle for anyone
+// not in this map (a newly-added account before this list is updated, or historical data from
+// an old rep no longer in user_directory).
+const REP_DISPLAY_NAMES = {
+  'kamil.wysocki@datalake-tech.com': 'Kamil',
+  'rainlee@datalake-tech.com': 'Rain',
+  'victor.luo@datalake-tech.com': 'Victor',
+  'devin.yao@datalake-tech.com': 'Devin',
+};
+
 export function repLabel(email) {
-  return email ? email.split('@')[0] : '';
+  if (!email) return '';
+  return REP_DISPLAY_NAMES[email] || email.split('@')[0];
 }
 
 // Datasets group shops (e.g. one CSV import = one dataset) so imports don't all pile into
