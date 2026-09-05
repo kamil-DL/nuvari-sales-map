@@ -1470,12 +1470,21 @@ function initNuvariStoreApp() {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
 
+  let activeStoreId = null;
+
   function clearActive() {
     storeListEl.querySelectorAll(".nuvari-store.active").forEach(el => el.classList.remove("active"));
   }
 
   function setActive(id, options) {
     options = options || {};
+
+    if (activeStoreId && activeStoreId !== id) {
+      const prevMk = markerById.get(activeStoreId);
+      const prevPin = prevMk && prevMk.getElement() && prevMk.getElement().querySelector(".nuvari-pin");
+      if (prevPin) prevPin.classList.remove("is-active");
+    }
+
     clearActive();
 
     const el = elById.get(id);
@@ -1483,6 +1492,14 @@ function initNuvariStoreApp() {
       el.classList.add("active");
       if (options.scroll) el.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
+
+    const mk = markerById.get(id);
+    if (mk && mk.getElement()) {
+      const pinEl = mk.getElement().querySelector(".nuvari-pin");
+      if (pinEl) pinEl.classList.add("is-active");
+    }
+
+    activeStoreId = id;
   }
 
   function flyToStore(store) {
@@ -1491,57 +1508,54 @@ function initNuvariStoreApp() {
     if (mk) mk.openPopup();
   }
 
-  function getMarkerColorByStore(store) {
+  // Single source of truth for how a store's type is represented visually
+  // (map pin color/icon, popup avatar, popup badge label) so the three
+  // never drift out of sync with each other.
+  function getStoreTypeMeta(store) {
     const tag = store.tag || "";
     const type = store.type || "";
 
-    if (store.isHQ || type === "direct") return "#0BC6FF";
-    if (type === "repair" || tag.includes("維修商")) return "#002850";
-    return "#137ECE";
+    if (store.isHQ) {
+      return { modifier: "hq", icon: "storefront", label: "nuvari 旗艦門市" };
+    }
+
+    if (type === "repair" || tag.includes("維修商")) {
+      return { modifier: "repair", icon: "build", label: "維修據點" };
+    }
+
+    if (type === "direct") {
+      return { modifier: "direct", icon: "storefront", label: "直營門市" };
+    }
+
+    return { modifier: "dealer", icon: "directions_bike", label: "經銷門市" };
   }
 
-  function createColoredMarkerIcon(store) {
-    if (store.isHQ) return createHQMarkerIcon();
+  function createStoreMarkerIcon(store) {
+    const meta = getStoreTypeMeta(store);
+    const size = store.isHQ ? 40 : 34;
 
-    const color = getMarkerColorByStore(store);
-    const svg =
-      '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="44" viewBox="0 0 32 44">' +
-      '<defs><filter id="s" x="-20%" y="-10%" width="140%" height="130%"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#002850" flood-opacity="0.25"/></filter></defs>' +
-      '<path d="M16 0C7.16 0 0 7.16 0 16c0 12 16 28 16 28s16-16 16-28C32 7.16 24.84 0 16 0z" fill="' + color + '" filter="url(#s)"/>' +
-      '<circle cx="16" cy="15" r="6.5" fill="white"/>' +
-      '</svg>';
-
-    return L.icon({
-      iconUrl: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg),
-      iconSize: [32, 44],
-      iconAnchor: [16, 44],
-      popupAnchor: [0, -38]
-    });
-  }
-
-  function createHQMarkerIcon() {
-    const svg =
-      '<svg xmlns="http://www.w3.org/2000/svg" width="36" height="48" viewBox="0 0 36 48">' +
-      '<defs><filter id="hqs" x="-20%" y="-10%" width="140%" height="130%"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#002850" flood-opacity="0.35"/></filter></defs>' +
-      '<path d="M18 0C8.06 0 0 8.06 0 18c0 13.5 18 30 18 30s18-16.5 18-30C36 8.06 27.94 0 18 0z" fill="#0BC6FF" filter="url(#hqs)"/>' +
-      '<circle cx="18" cy="17" r="8" fill="white"/>' +
-      '<text x="18" y="20.5" text-anchor="middle" font-family="Lexend,sans-serif" font-weight="900" font-size="8" fill="#002850">HQ</text>' +
-      '</svg>';
-
-    return L.icon({
-      iconUrl: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg),
-      iconSize: [36, 48],
-      iconAnchor: [18, 48],
-      popupAnchor: [0, -42]
+    return L.divIcon({
+      className: "nuvari-pin-wrap",
+      html: '<div class="nuvari-pin ' + meta.modifier + '"><span class="material-symbols-outlined" aria-hidden="true">' + meta.icon + '</span></div>',
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
+      popupAnchor: [0, -size / 2 - 6]
     });
   }
 
   function buildPopupHTML(s) {
+    const meta = getStoreTypeMeta(s);
     const gURL = "https://www.google.com/maps/dir/?api=1&destination=" + s.lat + "," + s.lng;
     const tel = (s.phone || "").replace(/\s/g, "");
 
     return '<div class="nuvari-popup-inner">' +
+      '<div class="nuvari-popup-header">' +
+      '<div class="nuvari-popup-avatar ' + meta.modifier + '"><span class="material-symbols-outlined" aria-hidden="true">' + meta.icon + '</span></div>' +
+      '<div>' +
       '<div class="nuvari-popup-name">' + s.name + '</div>' +
+      '<span class="nuvari-popup-badge' + (s.isHQ ? ' hq' : '') + '">' + meta.label + '</span>' +
+      '</div>' +
+      '</div>' +
       '<div class="nuvari-popup-detail"><span class="material-symbols-outlined">location_on</span><span>' + s.address + '</span></div>' +
       '<div class="nuvari-popup-detail"><span class="material-symbols-outlined">call</span><span>' + (s.phone || "（未提供）") + '</span></div>' +
       '<div class="nuvari-popup-actions">' +
@@ -1555,9 +1569,10 @@ function initNuvariStoreApp() {
     markerLayer.clearLayers();
     cityCountLayer.clearLayers();
     markerById.clear();
+    activeStoreId = null;
 
     stores.forEach(function(s) {
-      const m = L.marker([s.lat, s.lng], { icon: createColoredMarkerIcon(s) })
+      const m = L.marker([s.lat, s.lng], { icon: createStoreMarkerIcon(s) })
         .bindPopup(buildPopupHTML(s), { maxWidth: 280 });
 
       m.on("click", function() {
