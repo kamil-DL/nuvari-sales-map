@@ -483,19 +483,22 @@
   }
 
   .nuvari-badge {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
+    height: 26px;
+    padding: 0 10px 0 8px;
+    border-radius: var(--radius-full);
     background: var(--primary-container);
     color: var(--secondary);
     display: inline-flex;
     align-items: center;
-    justify-content: center;
+    gap: 4px;
     flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 800;
+    white-space: nowrap;
   }
 
   .nuvari-badge .material-symbols-outlined {
-    font-size: 16px;
+    font-size: 15px;
   }
 
   .nuvari-badge.repair {
@@ -514,10 +517,6 @@
   #nuvariMap {
     height: 100%;
     width: 100%;
-  }
-
-  #nuvariMap .leaflet-tile-pane {
-    filter: saturate(0.5) brightness(1.05);
   }
 
   .leaflet-popup-content-wrapper {
@@ -1331,14 +1330,16 @@ function initNuvariStoreApp() {
   const map = L.map("nuvariMap", { zoomControl: false }).setView([23.7, 121], 7);
   L.control.zoom({ position: "bottomright" }).addTo(map);
 
-  L.tileLayer("https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}{r}.png", {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    maxZoom: 19
+  L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
+    attribution: 'Tiles &copy; Esri &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap contributors',
+    maxZoom: 19,
+    maxNativeZoom: 16
   }).addTo(map);
 
   let markerLayer = L.layerGroup().addTo(map);
   let cityCountLayer = L.layerGroup().addTo(map);
   let markerById = new Map();
+  window.__nuvariDebug.markerById = markerById; // TEMP DEBUG
   let elById = new Map();
   let userLocation = null;
   let latestFilteredStores = [];
@@ -1543,6 +1544,18 @@ function initNuvariStoreApp() {
     });
   }
 
+  // Shared by the sidebar list and the map popup so the two never show
+  // different services for the same store.
+  function buildServiceBadgesHTML(store) {
+    const services = getServices(store);
+    let badges = "";
+    if (services.purchase) badges += '<span class="nuvari-badge"><span class="material-symbols-outlined" aria-hidden="true">storefront</span>購買</span>';
+    if (services.trialGO) badges += '<span class="nuvari-badge"><span class="material-symbols-outlined" aria-hidden="true">pedal_bike</span>GO 試乘</span>';
+    if (services.trialUltra) badges += '<span class="nuvari-badge"><span class="material-symbols-outlined" aria-hidden="true">speed</span>Ultra 試乘</span>';
+    if (services.repair) badges += '<span class="nuvari-badge repair"><span class="material-symbols-outlined" aria-hidden="true">build</span>維修</span>';
+    return badges;
+  }
+
   function buildPopupHTML(s) {
     const meta = getStoreTypeMeta(s);
     const gURL = "https://www.google.com/maps/dir/?api=1&destination=" + s.lat + "," + s.lng;
@@ -1556,6 +1569,7 @@ function initNuvariStoreApp() {
       '<span class="nuvari-popup-badge' + (s.isHQ ? ' hq' : '') + '">' + meta.label + '</span>' +
       '</div>' +
       '</div>' +
+      '<div class="nuvari-badge-row">' + buildServiceBadgesHTML(s) + '</div>' +
       '<div class="nuvari-popup-detail"><span class="material-symbols-outlined">location_on</span><span>' + s.address + '</span></div>' +
       '<div class="nuvari-popup-detail"><span class="material-symbols-outlined">call</span><span>' + (s.phone || "（未提供）") + '</span></div>' +
       '<div class="nuvari-popup-actions">' +
@@ -1637,12 +1651,7 @@ function initNuvariStoreApp() {
     emptyStateEl.hidden = stores.length > 0;
 
     stores.forEach(function(s) {
-      const services = getServices(s);
-      let badges = "";
-      if (services.purchase) badges += '<span class="nuvari-badge" title="購車"><span class="material-symbols-outlined" aria-hidden="true">storefront</span></span>';
-      if (services.trialGO) badges += '<span class="nuvari-badge" title="GO 試乘"><span class="material-symbols-outlined" aria-hidden="true">pedal_bike</span></span>';
-      if (services.trialUltra) badges += '<span class="nuvari-badge" title="Ultra 試乘"><span class="material-symbols-outlined" aria-hidden="true">speed</span></span>';
-      if (services.repair) badges += '<span class="nuvari-badge repair" title="維修"><span class="material-symbols-outlined" aria-hidden="true">build</span></span>';
+      const badges = buildServiceBadgesHTML(s);
 
       let distanceTag = "";
       if (userLocation && s.distanceKm !== undefined) {

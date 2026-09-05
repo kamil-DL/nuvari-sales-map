@@ -1280,11 +1280,15 @@ function rebuildBikeshopMarkers(){
   rebuildBikeshopDataFromLayers();
   bikeshopData.forEach(shop=>{
     const layerForColor=csvLayers.find(l=>l.id===shop._layerId);
-    // "Color by priority" is still an opt-in per-layer override (pins turn red/orange/blue/gray
-    // by P1/P2/P3/none) for when a priority-focused view is more useful than the brand split.
+    // "Color by priority" and "color by dataset" are opt-in per-layer overrides of the default
+    // brand-name coloring — priority for a P1/P2/P3-focused view, dataset for when the layer
+    // split itself (e.g. distinguishing competitor brands) is what matters, not the shop's own
+    // Merida/Giant/other name match (which is blind to which uploaded dataset a shop came from).
     const fillColor=(layerForColor&&layerForColor.colorByPriority)
       ?(PRIORITY_STYLE[shop.priority]?PRIORITY_STYLE[shop.priority].color:'#AEB4BD')
-      :brandColor(shop);
+      :(layerForColor&&layerForColor.colorByLayer)
+        ?(layerForColor.color||'#AEB4BD')
+        :brandColor(shop);
     const m=L.circleMarker([shop.lat,shop.lng],{
       radius:7,color:'#fff',weight:1.8,fillColor:fillColor,fillOpacity:0.9,pane:'shopPane'
     }).addTo(bikeshopGroup);
@@ -2222,7 +2226,7 @@ function renderShopsTab(){
     layersHtml+=`<div class="layer-card" style="border:1.5px solid ${isActive?layer.color:'var(--border)'};border-radius:9px;padding:10px 12px;margin-bottom:10px;">
       <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;">
         <span style="width:11px;height:11px;border-radius:50%;background:${esc(layer.color)};flex-shrink:0;display:inline-block;"></span>
-        <span style="font-weight:700;font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(layer.name)}">${esc(layer.name)}</span>
+        <span style="font-weight:700;font-size:12px;flex:1;min-width:0;word-break:break-word;line-height:1.3;" title="${esc(layer.name)}">${esc(layer.name)}</span>
         <button class="btn layer-toggle-btn" data-lid="${esc(layer.id)}" style="font-size:12px;font-weight:700;padding:5px 13px;${isActive?'background:var(--ink);color:#fff;border-color:var(--ink)':''}">${isActive?'開':'關'}</button>
         ${layer.id.startsWith('shopdb_')?`<button class="btn layer-refresh-btn" data-lid="${esc(layer.id)}" title="從資料庫重新同步（不會清除目前篩選）" style="font-size:12px;padding:5px 9px;">🔄</button>`:''}
         <button class="btn layer-export-btn" data-lid="${esc(layer.id)}" title="匯出此資料集（依目前篩選）" style="font-size:12px;padding:5px 9px;">⬇</button>
@@ -2235,8 +2239,10 @@ function renderShopsTab(){
           <button class="btn layer-filters-btn" data-lid="${esc(layer.id)}" style="font-size:10.5px;padding:3px 9px;${filtersOpen?'background:var(--accent-light);border-color:var(--accent);color:var(--accent);':''}">⚙ 篩選${filtersOpen?' ▾':' ▸'}</button>
         </div>
       </div>
-      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:${filtersOpen?'8px':'0'};">
+      <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:${filtersOpen?'8px':'0'};">
         <button class="btn layer-priority-color-btn" data-lid="${esc(layer.id)}" style="font-size:9px;padding:2px 7px;${layer.colorByPriority?'background:var(--accent-light);border-color:var(--accent);color:var(--accent);':''}">🎨 依優先順序著色</button>
+        <button class="btn layer-datasetcolor-btn" data-lid="${esc(layer.id)}" style="font-size:9px;padding:2px 7px;${layer.colorByLayer?'background:var(--accent-light);border-color:var(--accent);color:var(--accent);':''}">🎨 整組同色</button>
+        ${layer.colorByLayer?`<span style="display:flex;align-items:center;gap:1px;">${LAYER_COLORS.map(c=>`<span class="layer-color-swatch" data-lid="${esc(layer.id)}" data-color="${c}" title="${c}" style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${c};margin:1px;cursor:pointer;border:2px solid ${layer.color===c?'#282828':'transparent'};"></span>`).join('')}</span>`:''}
       </div>
       ${filtersOpen?`<div class="layer-filters-panel">${filterGroups}</div>`:''}
     </div>`;
@@ -2361,6 +2367,22 @@ function renderShopsTab(){
     btn.addEventListener('click',()=>{
       const layer=csvLayers.find(l=>l.id===btn.dataset.lid);if(!layer)return;
       layer.colorByPriority=!layer.colorByPriority;
+      if(layer.colorByPriority)layer.colorByLayer=false; // mutually exclusive with dataset-color mode
+      persistBikeshops();rebuildBikeshopMarkers();renderShopsTab();
+    });
+  });
+  el.querySelectorAll('.layer-datasetcolor-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const layer=csvLayers.find(l=>l.id===btn.dataset.lid);if(!layer)return;
+      layer.colorByLayer=!layer.colorByLayer;
+      if(layer.colorByLayer)layer.colorByPriority=false; // mutually exclusive with priority-color mode
+      persistBikeshops();rebuildBikeshopMarkers();renderShopsTab();
+    });
+  });
+  el.querySelectorAll('.layer-color-swatch').forEach(sw=>{
+    sw.addEventListener('click',()=>{
+      const layer=csvLayers.find(l=>l.id===sw.dataset.lid);if(!layer)return;
+      layer.color=sw.dataset.color;
       persistBikeshops();rebuildBikeshopMarkers();renderShopsTab();
     });
   });
