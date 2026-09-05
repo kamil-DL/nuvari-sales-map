@@ -4,8 +4,9 @@
     {
       "name": "static-server",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["-y", "serve", "-l", "5566", "."],
-      "port": 5566
+      "runtimeArgs": ["-y", "serve", "."],
+      "port": 5566,
+      "autoPort": true
     }
   ]
 }

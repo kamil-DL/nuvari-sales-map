@@ -1,0 +1,1766 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>nuvari 門市地圖 (Cyberbiz Storefinder)</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+
+<style>
+  .nuvari-store-page {
+    --primary: #0BC6FF;
+    --primary-container: #E6F9FF;
+    --secondary: #137ECE;
+    --secondary-dark: #002850;
+    --text-muted: #798BA5;
+    --border-light: #E2E8F0;
+    --surface: #ffffff;
+    --surface-container: #F7F9FC;
+    --tag-go: #0BC6FF;
+    --tag-ultra: #137ECE;
+    --tag-order: #002850;
+    --tag-elife: #E60033;
+    --tag-flagship: #798BA5;
+    --tag-repair: #000000;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 20px;
+    --radius-full: 999px;
+    --shadow-md: 0 4px 16px rgba(0,40,80,0.08);
+    --shadow-lg: 0 8px 32px rgba(0,40,80,0.12);
+    --transition: 200ms cubic-bezier(0.4,0,0.2,1);
+    font-family: 'Lexend', -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    color: var(--secondary-dark);
+    line-height: 1.8;
+    max-width: 1520px;
+    margin: 0 auto;
+    padding: 32px 18px;
+  }
+
+  .nuvari-store-page *,
+  .nuvari-store-page *::before,
+  .nuvari-store-page *::after {
+    box-sizing: border-box;
+  }
+
+  .nuvari-store-page {
+    width: 100%;
+  }
+
+  .nuvari-store-page img {
+    max-width: 100%;
+    height: auto;
+  }
+
+  .nuvari-store-hero {
+    position: relative;
+    overflow: hidden;
+    color: #ffffff;
+    border-radius: 28px;
+    text-align: center;
+    margin-bottom: 28px;
+    box-shadow: 0 16px 40px rgba(0, 40, 80, 0.18);
+    width: 100%;
+    background: transparent;
+  }
+
+  .nuvari-store-hero-bg {
+    display: block;
+    width: 100%;
+    line-height: 0;
+  }
+
+  .nuvari-store-hero-bg img {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    object-fit: contain;
+    object-position: center center;
+  }
+
+  .nuvari-store-intro-panel {
+    background: transparent;
+    color: #002850;
+    border-radius: 24px;
+    padding: 34px 28px;
+    text-align: center;
+    margin: -4px 0 28px;
+    box-shadow: 0 10px 28px rgba(0,40,80,0.08);
+  }
+
+  .nuvari-store-intro-panel h1 {
+    font-size: clamp(28px, 2.7vw, 38px);
+    line-height: 1.35;
+    margin: 0 0 12px;
+    color: #002850;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+  }
+
+  .nuvari-store-intro-panel p {
+    max-width: 860px;
+    margin: 0 auto 6px;
+    color:#002850;
+    font-size: 16px;
+  }
+
+  .nuvari-store-intro-panel .nuvari-contact-actions {
+    margin-top: 18px;
+  }
+
+  .nuvari-store-hero .eyebrow {
+    display: inline-block;
+    padding: 6px 14px;
+    border: 1px solid rgba(255,255,255,0.35);
+    border-radius: 999px;
+    font-size: 14px;
+    letter-spacing: 0.06em;
+    margin-bottom: 14px;
+    color: #ffffff;
+  }
+
+  .nuvari-store-hero h1 {
+    font-size: 34px;
+    line-height: 1.35;
+    margin: 0 0 14px;
+    color: #ffffff;
+    font-weight: 800;
+  }
+
+  .nuvari-store-hero p {
+    max-width: 780px;
+    margin: 0 auto;
+    color: rgba(255,255,255,0.9);
+    font-size: 16px;
+  }
+
+  .nuvari-alert {
+    background: #ECFAFF;
+    border: 1px solid rgba(11,198,255,0.35);
+    border-left: 6px solid var(--primary);
+    border-radius: 18px;
+    padding: 20px 22px;
+    margin-bottom: 24px;
+  }
+
+  .nuvari-shop-cta {
+    background: #ffffff;
+    border: 1px solid #E6ECF2;
+    border-radius: 22px;
+    padding: 20px 22px;
+    margin-bottom: 24px;
+    box-shadow: 0 10px 28px rgba(0,40,80,0.06);
+    color: var(--text-muted);
+    font-size: 15px;
+  }
+
+  .nuvari-shop-cta strong,
+  .nuvari-alert strong {
+    color: var(--secondary-dark);
+  }
+
+  .nuvari-shop-cta a {
+    color: var(--secondary);
+    font-weight: 800;
+    text-decoration: none;
+    border-bottom: 1px solid var(--secondary);
+  }
+
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+
+  .nuvari-store-app {
+    display: grid;
+    grid-template-columns: 390px 1fr;
+    height: 700px;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    background: #ffffff;
+    box-shadow: 0 10px 28px rgba(0,40,80,0.06);
+  }
+
+  .nuvari-sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border-light);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .nuvari-filters {
+    padding: 20px;
+    border-bottom: 1px solid var(--border-light);
+    background: var(--surface);
+  }
+
+  .nuvari-filters-title {
+    font-size: 13px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--secondary-dark);
+    margin-bottom: 12px;
+  }
+
+  .nuvari-filter-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .nuvari-store-page select {
+    flex: 1;
+    height: 42px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-light);
+    padding: 0 12px;
+    font-size: 14px;
+    font-family: inherit;
+    font-weight: 600;
+    color: var(--secondary-dark);
+    background: var(--surface-container);
+    cursor: pointer;
+    transition: border-color var(--transition), box-shadow var(--transition);
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23798BA5' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+  }
+
+  .nuvari-store-page select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(11, 198, 255, 0.15);
+  }
+
+  .nuvari-store-page select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .nuvari-check-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .nuvari-check-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 44px;
+    padding: 8px 14px;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    background: var(--surface-container);
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: all var(--transition);
+    user-select: none;
+  }
+
+  .nuvari-check-pill .material-symbols-outlined {
+    font-size: 18px;
+  }
+
+  .nuvari-check-pill:hover {
+    border-color: var(--primary);
+    background: var(--primary-container);
+  }
+
+  .nuvari-check-pill:active {
+    transform: scale(0.96);
+  }
+
+  .nuvari-check-pill input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .nuvari-check-pill:has(input:checked) {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: var(--secondary-dark);
+  }
+
+  .nuvari-check-pill:has(input:focus-visible) {
+    outline: 2px solid var(--secondary);
+    outline-offset: 2px;
+  }
+
+  .nuvari-line-cta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    margin: 16px 20px;
+    border-radius: var(--radius-full);
+    background: #06c755;
+    color: #ffffff !important;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    transition: all var(--transition);
+    box-shadow: 0 2px 8px rgba(6, 199, 85, 0.25);
+  }
+
+  .nuvari-line-cta:hover {
+    background: #05b34a;
+    transform: translateY(-1px);
+  }
+
+  .nuvari-results-count {
+    padding: 0 20px 12px;
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--primary);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .nuvari-view-toggle {
+    display: none;
+  }
+
+  .nuvari-view-toggle button {
+    flex: 1;
+    height: 40px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-light);
+    background: var(--surface-container);
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all var(--transition);
+  }
+
+  .nuvari-view-toggle button.active {
+    background: var(--secondary-dark);
+    border-color: var(--secondary-dark);
+    color: #ffffff;
+  }
+
+  .nuvari-view-toggle button:active {
+    transform: scale(0.97);
+  }
+
+  .nuvari-empty-state {
+    margin: 8px 20px 0;
+    padding: 28px 16px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 600;
+    background: var(--surface-container);
+    border-radius: var(--radius-lg);
+  }
+
+  .nuvari-store-list {
+    padding: 12px 16px 28px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .nuvari-store-list::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .nuvari-store-list::-webkit-scrollbar-thumb {
+    background: var(--border-light);
+    border-radius: 4px;
+  }
+
+  .nuvari-store {
+    padding: 14px 16px;
+    margin-bottom: 8px;
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition: all var(--transition);
+    background: var(--surface-container);
+    border: 1px solid transparent;
+  }
+
+  .nuvari-store:hover,
+  .nuvari-store.active {
+    background: var(--primary-container);
+    border-color: var(--primary);
+    box-shadow: 0 4px 14px rgba(0,40,80,0.08);
+  }
+
+  .nuvari-store:active {
+    transform: scale(0.985);
+  }
+
+  .nuvari-store.is-hq {
+    background: var(--primary-container);
+    border: 1px solid rgba(0,40,80,0.2);
+  }
+
+  .nuvari-store-name {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--secondary-dark);
+    line-height: 1.4;
+    margin-bottom: 8px;
+  }
+
+  .nuvari-store-meta {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.8;
+  }
+
+  .nuvari-store-meta-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin-bottom: 2px;
+  }
+
+  .nuvari-store-meta-row .material-symbols-outlined {
+    font-size: 16px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    margin-top: 4px;
+  }
+
+  .nuvari-store-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 10px;
+  }
+
+  .nuvari-tag {
+    display: inline-block;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 800;
+    border-radius: var(--radius-full);
+    line-height: 1.5;
+    letter-spacing: 0.02em;
+  }
+
+  .nuvari-tag.flagship { background: var(--tag-flagship); color: #ffffff; }
+  .nuvari-tag.go { background: var(--tag-go); color: var(--secondary-dark); }
+  .nuvari-tag.ultra { background: var(--tag-ultra); color: #ffffff; }
+  .nuvari-tag.order-only { background: var(--tag-order); color: #ffffff; }
+  .nuvari-tag.elife { background: var(--tag-elife); color: #ffffff; }
+  .nuvari-tag.repair { background: var(--tag-repair); color: #ffffff; }
+  .nuvari-tag.hq { background: var(--secondary-dark); color: #ffffff; }
+  .nuvari-tag.distance { background: var(--secondary-dark); color: #ffffff; font-weight: 900; white-space: nowrap; }
+
+  .nuvari-badge-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .nuvari-badge {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--primary-container);
+    color: var(--secondary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .nuvari-badge .material-symbols-outlined {
+    font-size: 16px;
+  }
+
+  .nuvari-badge.repair {
+    background: var(--surface-container);
+    color: var(--secondary-dark);
+    border: 1px solid var(--border-light);
+  }
+
+  .nuvari-map-container {
+    position: relative;
+    height: 100%;
+    width: 100%;
+    background: var(--surface-container);
+  }
+
+  #nuvariMap {
+    height: 100%;
+    width: 100%;
+  }
+
+  #nuvariMap .leaflet-tile-pane {
+    filter: saturate(0.5) brightness(1.05);
+  }
+
+  .leaflet-popup-content-wrapper {
+    border-radius: var(--radius-lg) !important;
+    box-shadow: var(--shadow-lg) !important;
+    padding: 0 !important;
+    overflow: hidden;
+    font-family: 'Lexend', sans-serif !important;
+  }
+
+  .leaflet-popup-content {
+    margin: 0 !important;
+    min-width: 220px;
+    font-family: 'Lexend', sans-serif !important;
+  }
+
+  .leaflet-popup-tip {
+    box-shadow: none !important;
+  }
+
+  .nuvari-popup-inner {
+    padding: 18px;
+  }
+
+  .nuvari-popup-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .nuvari-popup-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-md);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--primary-container);
+    color: var(--secondary);
+  }
+
+  .nuvari-popup-avatar.repair {
+    background: var(--surface-container);
+    color: var(--secondary-dark);
+  }
+
+  .nuvari-popup-avatar .material-symbols-outlined {
+    font-size: 22px;
+  }
+
+  .nuvari-popup-name {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--secondary-dark);
+    line-height: 1.3;
+    margin-bottom: 4px;
+  }
+
+  .nuvari-popup-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    color: var(--secondary);
+    background: var(--primary-container);
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+  }
+
+  .nuvari-popup-badge.hq {
+    color: var(--secondary-dark);
+    background: var(--primary);
+  }
+
+  .nuvari-popup-detail {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.6;
+    margin-bottom: 4px;
+  }
+
+  .nuvari-popup-detail .material-symbols-outlined {
+    font-size: 16px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .nuvari-popup-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 12px;
+  }
+
+  .nuvari-popup-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    height: 34px;
+    border-radius: var(--radius-md);
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 800;
+    text-decoration: none;
+    cursor: pointer;
+    border: none;
+    transition: all var(--transition);
+  }
+
+  .nuvari-popup-btn.primary {
+    background: var(--primary);
+    color: var(--secondary-dark) !important;
+  }
+
+  .nuvari-popup-btn.secondary {
+    background: var(--surface-container);
+    color: var(--secondary-dark) !important;
+    border: 1px solid var(--border-light);
+  }
+
+  .nuvari-locate-btn {
+    position: absolute;
+    bottom: 24px;
+    left: 16px;
+    z-index: 1000;
+    width: 44px;
+    height: 44px;
+    background: var(--secondary-dark);
+    color: var(--primary);
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-md);
+    transition: all var(--transition);
+  }
+
+  .nuvari-locate-btn:hover {
+    background: #003a6e;
+  }
+
+  .nuvari-locate-btn:active {
+    transform: scale(0.92);
+  }
+
+  .nuvari-locate-btn[data-state="loading"] .material-symbols-outlined {
+    animation: nuvari-spin 0.9s linear infinite;
+  }
+
+  @keyframes nuvari-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .nuvari-user-marker {
+    position: relative;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--secondary);
+    border: 3px solid #ffffff;
+    box-shadow: 0 0 0 4px rgba(19,126,206,0.25), var(--shadow-md);
+  }
+
+  .nuvari-user-marker::after {
+    content: "";
+    position: absolute;
+    inset: -10px;
+    border-radius: 50%;
+    background: rgba(19,126,206,0.25);
+    animation: nuvari-pulse 2s ease-out infinite;
+  }
+
+  @keyframes nuvari-pulse {
+    0% { transform: scale(0.6); opacity: 0.8; }
+    100% { transform: scale(1.8); opacity: 0; }
+  }
+
+  .nuvari-pin-wrap {
+    background: transparent;
+    border: 0;
+  }
+
+  .nuvari-pin {
+    position: relative;
+    width: 34px;
+    height: 34px;
+    border-radius: var(--radius-md);
+    border: 2.5px solid #ffffff;
+    box-shadow: var(--shadow-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform var(--transition);
+  }
+
+  .nuvari-pin .material-symbols-outlined {
+    font-size: 18px;
+    font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+  }
+
+  .nuvari-pin.dealer { background: var(--secondary); color: #ffffff; }
+  .nuvari-pin.direct,
+  .nuvari-pin.hq { background: var(--primary); color: var(--secondary-dark); }
+  .nuvari-pin.repair { background: var(--secondary-dark); color: var(--primary); }
+
+  .nuvari-pin.hq {
+    width: 40px;
+    height: 40px;
+  }
+
+  .nuvari-pin.hq .material-symbols-outlined {
+    font-size: 20px;
+  }
+
+  .nuvari-pin.hq::after {
+    content: "";
+    position: absolute;
+    inset: -8px;
+    border-radius: calc(var(--radius-md) + 8px);
+    background: rgba(11,198,255,0.28);
+    animation: nuvari-pulse 2.2s ease-out infinite;
+    z-index: -1;
+  }
+
+  .nuvari-pin.is-active {
+    transform: scale(1.15);
+  }
+
+  .nuvari-city-count-marker {
+    background: transparent;
+    border: 0;
+  }
+
+  .nuvari-city-count-marker .nuvari-city-count {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: rgba(0,40,80,0.92);
+    color: #ffffff;
+    border: 3px solid rgba(11,198,255,0.85);
+    box-shadow: 0 8px 24px rgba(0,40,80,0.28);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.1;
+    cursor: pointer;
+  }
+
+  .nuvari-city-count-marker .nuvari-city-count strong {
+    font-size: 18px;
+    font-weight: 900;
+    color: #ffffff;
+  }
+
+  .nuvari-city-count-marker .nuvari-city-count span {
+    font-size: 11px;
+    font-weight: 800;
+    color: rgba(255,255,255,0.9);
+    margin-top: 3px;
+  }
+
+  .nuvari-store-type-section {
+    margin-top: 28px;
+    background: #ffffff;
+    border: 1px solid #E6ECF2;
+    border-radius: 24px;
+    padding: 28px;
+    box-shadow: 0 10px 28px rgba(0,40,80,0.06);
+  }
+
+  .nuvari-store-type-section h2 {
+    font-size: 24px;
+    margin: 0 0 8px;
+    color: var(--secondary-dark);
+  }
+
+  .nuvari-store-type-section > p {
+    margin: 0 0 18px;
+    color: var(--text-muted);
+  }
+
+  .nuvari-store-type-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+
+  .nuvari-store-type-card {
+    position: relative;
+    border: 1px solid #E6ECF2;
+    border-radius: 20px;
+    padding: 22px;
+    background: var(--surface-container);
+    overflow: hidden;
+  }
+
+  .nuvari-store-type-card.direct,
+  .nuvari-store-type-card.dealer {
+    border-color: rgba(11,198,255,0.45);
+    background: #ECFAFF;
+  }
+
+  .nuvari-store-type-card.repair {
+    background: #F8F8F8;
+  }
+
+  .nuvari-store-type-card .pin {
+    position: relative;
+    width: 42px;
+    height: 42px;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    margin-bottom: 18px;
+    box-shadow: 0 8px 18px rgba(0,40,80,0.16);
+  }
+
+  .nuvari-store-type-card .pin span {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #ffffff;
+    transform: translate(-50%, -50%) rotate(45deg);
+  }
+
+  .nuvari-store-type-card.direct .pin { background: #0BC6FF; }
+  .nuvari-store-type-card.dealer .pin { background: #137ECE; }
+  .nuvari-store-type-card.repair { display: none; }
+  .nuvari-store-type-card.repair .pin { background: #002850; }
+
+  .nuvari-store-type-card h3 {
+    margin: 0;
+    font-size: 20px;
+    color: var(--secondary-dark);
+  }
+
+  .nuvari-store-type-card .subtitle {
+    margin: 2px 0 16px;
+    color: var(--secondary-dark);
+    font-weight: 700;
+    font-size: 14px;
+  }
+
+  .nuvari-store-type-card ul {
+    margin: 0;
+    padding-left: 20px;
+    color: #1f2937;
+    font-size: 14px;
+  }
+
+  .nuvari-store-type-card li {
+    margin-bottom: 6px;
+  }
+  .nuvari-series-note {
+    margin-top: 18px;
+    background: #ECFAFF;
+    border: 1px solid rgba(11,198,255,0.45);
+    border-left: 6px solid var(--primary);
+    border-radius: 20px;
+    padding: 22px;
+  }
+
+  .nuvari-series-note h3 {
+    margin: 0 0 8px;
+    color: var(--secondary-dark);
+    font-size: 20px;
+  }
+
+  .nuvari-series-note p {
+    margin: 0 0 12px;
+    color: #475467;
+    font-size: 14px;
+  }
+
+  .nuvari-series-note ul {
+    margin: 0;
+    padding-left: 20px;
+    color: #1f2937;
+    font-size: 14px;
+  }
+
+  .nuvari-series-note li {
+    margin-bottom: 6px;
+  }
+
+  .nuvari-tag.trial-go { background: var(--tag-go); color: var(--secondary-dark); }
+  .nuvari-tag.trial-ultra { background: var(--tag-ultra); color: #ffffff; }
+
+
+  .nuvari-contact-box {
+    background: #002850;
+    color: #ffffff;
+    border-radius: 24px;
+    padding: 28px;
+    margin-top: 28px;
+    text-align: center;
+  }
+
+  .nuvari-contact-box h2 {
+    color: #ffffff;
+    margin: 0 0 8px;
+    font-size: 24px;
+  }
+
+  .nuvari-contact-box p {
+    margin: 0;
+    color: rgba(255,255,255,0.86);
+  }
+
+  .nuvari-contact-actions {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 18px;
+  }
+
+  .nuvari-service-btn {
+    display: inline-block;
+    background: #06c755;
+    color: #ffffff !important;
+    text-decoration: none;
+    font-weight: 800;
+    border-radius: 999px;
+    padding: 9px 18px;
+    transition: all .2s ease;
+  }
+
+  .nuvari-service-btn.secondary {
+    background: #137ECE;
+    color: #ffffff !important;
+  }
+
+  @media (max-width: 960px) {
+    .nuvari-store-page {
+      padding: 24px 0;
+    }
+
+    .nuvari-store-hero,
+    .nuvari-store-intro-panel,
+    .nuvari-alert,
+    .nuvari-shop-cta,
+    .nuvari-contact-box,
+    .nuvari-store-type-section {
+      margin-left: 16px;
+      margin-right: 16px;
+    }
+
+    .nuvari-store-hero {
+      border-radius: 22px;
+    }
+
+    .nuvari-store-intro-panel {
+      border-radius: 22px;
+      padding: 30px 22px;
+    }
+
+    .nuvari-store-hero h1 {
+      font-size: 28px;
+    }
+
+    .nuvari-store-app {
+      grid-template-columns: 1fr;
+      height: auto;
+      margin: 0;
+      border-radius: 0;
+      border-left: 0;
+      border-right: 0;
+      box-shadow: none;
+    }
+
+    .nuvari-sidebar {
+      height: auto;
+      border-right: none;
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    .nuvari-filters {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--surface);
+    }
+
+    .nuvari-filter-row {
+      flex-direction: column;
+    }
+
+    .nuvari-view-toggle {
+      display: flex;
+      gap: 8px;
+      padding: 0 20px 14px;
+    }
+
+    .nuvari-store-list {
+      max-height: none;
+      height: min(68vh, 620px);
+      height: min(68dvh, 620px);
+      overflow-y: auto;
+    }
+
+    .nuvari-map-container {
+      height: min(68vh, 620px);
+      height: min(68dvh, 620px);
+    }
+
+    .nuvari-store-app[data-mobile-view="list"] .nuvari-map-container {
+      display: none;
+    }
+
+    .nuvari-store-app[data-mobile-view="map"] .nuvari-store-list,
+    .nuvari-store-app[data-mobile-view="map"] .nuvari-empty-state {
+      display: none;
+    }
+
+    .nuvari-store-type-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .nuvari-contact-actions {
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .nuvari-service-btn {
+      width: 100%;
+      max-width: 280px;
+      text-align: center;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .nuvari-store-page {
+      overflow-x: hidden;
+    }
+
+    .nuvari-store-hero,
+    .nuvari-store-intro-panel,
+    .nuvari-alert,
+    .nuvari-shop-cta,
+    .nuvari-contact-box,
+    .nuvari-store-type-section {
+      margin-left: 10px;
+      margin-right: 10px;
+    }
+
+    .nuvari-store-hero {
+      border-radius: 18px;
+    }
+
+    .nuvari-store-intro-panel {
+      border-radius: 18px;
+      padding: 24px 16px;
+      margin-bottom: 22px;
+    }
+
+    .nuvari-store-intro-panel h1 {
+      font-size: clamp(24px, 7vw, 30px);
+    }
+
+    .nuvari-store-intro-panel p {
+      font-size: 14px;
+      line-height: 1.65;
+    }
+
+    .nuvari-store-hero h1 {
+      font-size: clamp(20px, 6vw, 24px);
+      margin-bottom: 8px;
+    }
+
+    .nuvari-store-hero p {
+      font-size: clamp(12px, 3.6vw, 14px);
+      line-height: 1.6;
+    }
+
+    .nuvari-contact-actions {
+      margin-top: 12px;
+      gap: 8px;
+    }
+
+    .nuvari-service-btn {
+      padding: 8px 14px;
+      font-size: 13px;
+    }
+  }
+
+</style>
+</head>
+<body>
+
+<div class="nuvari-store-page">
+
+  <section class="nuvari-store-hero" aria-label="nuvari 線下實體店主視覺">
+    <picture class="nuvari-store-hero-bg">
+      <!-- 將下面 src 換成您上傳到 Cyberbiz 後台的圖片網址 -->
+      <img src="https://cdn.cybassets.com/media/W1siZiIsIjMzODczL2F0dGFjaGVkX3Bob3Rvcy8xNzc3MjUzOTM0X-e3muS4i-WvpumrlOW6lyvlsI8uanBnLmpwZWciXV0.jpeg?sha=218abee40e98dcef" alt="nuvari 線下實體店" loading="eager">
+    </picture>
+
+  </section>
+
+  <section class="nuvari-store-intro-panel" aria-label="nuvari 線下實體店查詢說明">
+    <p>查詢 nuvari 合作門市、試騎據點與安裝服務據點。</p>
+    <p>您可以依縣市、區域與服務類型篩選，快速找到離您最近的合作車店，並直接導航或預約試騎。</p>
+
+    <div class="nuvari-contact-actions">
+      <a class="nuvari-service-btn" href="https://page.line.me/091vmynj" target="_blank" rel="noopener">
+        加入 LINE@ 預約試騎
+      </a>
+      <a class="nuvari-service-btn secondary" href="https://datalake-tech.zendesk.com/hc/zh-tw/requests/new?ticket_form_id=14737655729039" target="_blank" rel="noopener">
+        歡迎加入 nuvari 經銷網絡
+      </a>
+    </div>
+  </section>
+
+  <div class="nuvari-store-app" id="nuvariStoreApp" data-mobile-view="list">
+    <div class="nuvari-sidebar">
+      <div class="nuvari-filters">
+        <div class="nuvari-filters-title">篩選據點</div>
+
+        <div class="nuvari-filter-row">
+          <select id="nuvariCitySelect">
+            <option value="">選擇縣市</option>
+          </select>
+
+          <select id="nuvariDistrictSelect" disabled>
+            <option value="">選擇區域</option>
+          </select>
+        </div>
+
+        <div class="nuvari-check-row">
+          <label class="nuvari-check-pill">
+            <input id="nuvariPurchaseCheck" type="checkbox">
+            <span class="material-symbols-outlined" aria-hidden="true">storefront</span>
+            購車
+          </label>
+
+          <label class="nuvari-check-pill">
+            <input id="nuvariTrialGOCheck" type="checkbox">
+            <span class="material-symbols-outlined" aria-hidden="true">pedal_bike</span>
+            GO 試乘
+          </label>
+
+          <label class="nuvari-check-pill">
+            <input id="nuvariTrialUltraCheck" type="checkbox">
+            <span class="material-symbols-outlined" aria-hidden="true">speed</span>
+            Ultra 試乘
+          </label>
+
+          <label class="nuvari-check-pill">
+            <input id="nuvariRepairCheck" type="checkbox">
+            <span class="material-symbols-outlined" aria-hidden="true">build</span>
+            維修
+          </label>
+        </div>
+      </div>
+
+      <a class="nuvari-line-cta" href="https://page.line.me/091vmynj" target="_blank" rel="noopener noreferrer">
+        <span class="material-symbols-outlined" style="font-size:18px;">chat</span>
+        LINE 立即預約試騎
+      </a>
+
+      <div class="nuvari-results-count" id="nuvariResultsCount">0 間據點</div>
+
+      <div class="nuvari-view-toggle" role="tablist" aria-label="切換列表或地圖檢視">
+        <button type="button" id="nuvariViewListBtn" class="active" aria-pressed="true">
+          <span class="material-symbols-outlined" aria-hidden="true" style="font-size:18px;">view_list</span>
+          列表
+        </button>
+        <button type="button" id="nuvariViewMapBtn" aria-pressed="false">
+          <span class="material-symbols-outlined" aria-hidden="true" style="font-size:18px;">map</span>
+          地圖
+        </button>
+      </div>
+
+      <div class="nuvari-store-list" id="nuvariStoreList"></div>
+      <div class="nuvari-empty-state" id="nuvariEmptyState" hidden>找不到符合條件的門市，請調整篩選條件。</div>
+    </div>
+
+    <div class="nuvari-map-container">
+      <div id="nuvariMap"></div>
+      <button type="button" class="nuvari-locate-btn" id="nuvariLocateBtn" aria-label="定位我目前的位置">
+        <span class="material-symbols-outlined">my_location</span>
+      </button>
+    </div>
+  </div>
+
+  <section class="nuvari-store-type-section">
+    <h2>授權經銷與直營門市說明</h2>
+    <p>不同據點可提供的服務略有差異，建議前往前先確認可試乘車款、購買品項與安裝維修時段。</p>
+
+    <div class="nuvari-store-type-grid">
+      <div class="nuvari-store-type-card direct">
+        <div class="pin"><span></span></div>
+        <h3>直營門市</h3>
+        <div class="subtitle">nuvari 總部／官方設立之體驗門市</div>
+        <ul>
+          <li>預約試乘：線上預約即可到店試乘</li>
+          <li>保養維修：於駐點時段開放保養維修</li>
+          <li>購車服務：全車系任意車款皆可購買</li>
+        </ul>
+      </div>
+
+      <div class="nuvari-store-type-card dealer">
+        <div class="pin"><span></span></div>
+        <h3>實體經銷商</h3>
+        <div class="subtitle">一般授權之銷售通路</div>
+        <ul>
+          <li>預約試乘：電話預約即可到店試乘</li>
+          <li>購車服務：僅能購買指定車款</li>
+          <li>安裝維修：目前請以 nuvari 總部服務為主，合作店家服務將陸續開放</li>
+        </ul>
+      </div>
+
+      <div class="nuvari-store-type-card repair">
+        <div class="pin"><span></span></div>
+        <h3>維修商</h3>
+        <div class="subtitle">品牌合作之維修據點</div>
+        <ul>
+          <li>保養維修：營業時段皆可前往維修</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="nuvari-series-note">
+      <h3>產品系列試乘提醒</h3>
+      <p>
+        各店家可提供的試乘體驗產品型號系列不同，請先確認離您最近的店家支援的是 GO 系列或 Ultra 系列，
+        並確認該系列是否符合您的自行車規格與使用情境。
+      </p>
+      <ul>
+        <li><strong>GO 系列：</strong>適合城市通勤、日常短程移動與一般休閒騎乘需求。</li>
+        <li><strong>Ultra 系列：</strong>適合公路車、長距離騎乘、爬坡與進階騎乘需求。</li>
+        <li><strong>前往試乘前：</strong>建議先透過 LINE@ 或電話確認店家是否有對應系列試乘車與可預約時段。</li>
+      </ul>
+    </div>
+  </section>
+
+
+</div>
+
+<script>
+function initNuvariStoreApp() {
+  const STORES = [
+    // --- Original Stores ---
+    {name:"nuvari 總部",type:"direct",city:"台中市",district:"南屯區",address:"408臺中市南屯區龍鎮二街398號",phone:"04 2372 2070",tag:"nuvari總部/GO 試乘/Ultra 試乘/維修",wheelStyle:"GO / Ultra",lat:24.1333736,lng:120.626378,isHQ:true},
+    {name:"乘風單車店",type:"dealer",city:"新竹市",district:"北區",address:"300028台灣新竹市北區中山路204號",phone:"03 524 7077",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:24.7955893,lng:120.9246476},
+    {name:"老學長單車生活館",type:"dealer",city:"新竹市",district:"東區",address:"300台灣新竹市東區光復路二段902巷2號",phone:"03 526 7318",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:24.8030763,lng:120.9792957},
+    {name:"輕車熟路",type:"dealer",city:"新竹市",district:"東區",address:"300台灣新竹市東區金城一路99號",phone:"03 572 0040",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:24.7957166,lng:121.0023035},
+    {name:"自由行單車專賣店",type:"dealer",city:"新竹市",district:"東區",address:"300台灣新竹市東區博愛街32號",phone:"03 572 0225",tag:"GO 試乘",wheelStyle:"GO-28\"",lat:24.7980856,lng:120.9820485},
+    {name:"百士客單車",type:"dealer",city:"新竹市",district:"東區",address:"300台灣新竹市東區關東路79號",phone:"03 563 0308",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:24.785135,lng:121.0191556},
+    {name:"新湖車行自行車",type:"dealer",city:"新竹縣",district:"湖口鄉",address:"303新竹縣湖口鄉中山路二段10號",phone:"03 599 2854",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:24.8996663,lng:121.0401253},
+    {name:"綠生活戶外休閒館",type:"dealer",city:"台中市",district:"南區",address:"402台中市南區國光路204-1號",phone:"04 2287 9696",tag:"GO 試乘",wheelStyle:"GO-28\"",lat:24.1262714,lng:120.6764368},
+    {name:"雲遊單車休閒館",type:"dealer",city:"台中市",district:"北屯區",address:"406029台中市北屯區崇德六路一段173號",phone:"04 2247 4709",tag:"GO 試乘",wheelStyle:"GO-28\"",lat:24.180255,lng:120.6910543},
+    {name:"維也娜車行",type:"dealer",city:"台中市",district:"大里區",address:"412臺灣台中市大里區草湖路95巷50號",phone:"04 2496 0793",tag:"GO 試乘",wheelStyle:"GO-28\"",lat:24.0770306,lng:120.688258},
+    {name:"鐵馬王自行車行",type:"dealer",city:"台中市",district:"豐原區",address:"420台中市豐原區豐北街295號",phone:"04 2520 0901",tag:"GO 試乘",wheelStyle:"Ultra",lat:24.2604133,lng:120.713783},
+    {name:"鑫馬單車",type:"dealer",city:"台中市",district:"潭子區",address:"427台中市潭子區大豐路二段73號號",phone:"04 2534 9162",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:24.21778,lng:120.6889693},
+    {name:"美利達久大單車生活館",type:"dealer",city:"台中市",district:"潭子區",address:"427臺灣台中市潭子區福貴路655號",phone:"04 2536 0648",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:24.2164525,lng:120.7126704},
+    {name:"BAISKY官方旗艦店",type:"dealer",city:"台中市",district:"大雅區",address:"428臺中市大雅區中清北街69號",phone:"04-25693341",tag:"GO 試乘",wheelStyle:"GO-28\"",lat:24.2248816,lng:120.6462681},
+    {name:"捷安特-天華車行",type:"dealer",city:"台中市",district:"大雅區",address:"428臺中市大雅區學府路319號",phone:"04 2568 3256",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:24.22518582,lng:120.6489314},
+    {name:"修李人工坊",type:"dealer",city:"台中市",district:"沙鹿區",address:"433台中市沙鹿區北勢東路833巷2-5號",phone:"0937 266 283",tag:"GO 試乘",wheelStyle:"GO-28\"",lat:24.22882815,lng:120.5683997},
+    {name:"美利達 清華專賣店",type:"dealer",city:"台中市",district:"沙鹿區",address:"433臺灣台中市沙鹿區日新街61巷4號",phone:"04 2662 5672",tag:"GO 試乘",wheelStyle:"GO-28\"",lat:24.2365693,lng:120.5604394},
+    {name:"翔愛腳踏車店",type:"dealer",city:"台中市",district:"龍井區",address:"434台中市龍井區文昌路776號",phone:"0928 999 515",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:24.1827632,lng:120.5289717},
+    {name:"捷安特-林清月車行 自行車&電動車專賣店",type:"dealer",city:"台中市",district:"清水區",address:"436臺中市清水區清水街47號",phone:"04 2622 1748",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:24.26961446,lng:120.5748578},
+    {name:"騎寓自轉車",type:"dealer",city:"彰化縣",district:"社頭鄉",address:"511彰化縣社頭鄉中興路64號",phone:"04 871 0477",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:23.9030578,lng:120.581014},
+    {name:"傑輪單車休閒館 Jalen Bike Shop",type:"dealer",city:"南投縣",district:"南投市",address:"540南投縣南投市大同街17號",phone:"0921 594 356",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:23.9065286,lng:120.6855893},
+    {name:"美利達-東益店（單車銷售、出租）",type:"dealer",city:"南投縣",district:"南投市",address:"540南投縣南投市中興路16號",phone:"04 9233 7000",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:23.9390099,lng:120.694468},
+    {name:"晉榮車行",type:"dealer",city:"嘉義市",district:"東區",address:"600嘉義市東區台林街233號",phone:"05 271 9243",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:23.4978156,lng:120.4552815},
+    {name:"GIANT捷安特-金的車行 自行車&電動車專賣店",type:"dealer",city:"臺中市",district:"豐原區",address:"420臺中市豐原區西安里中正路457號",phone:"04 2525 6347",tag:"GO 試乘",wheelStyle:"GO-28\"",lat:24.2504496,lng:120.7091707},
+    {name:"成功行",type:"dealer",city:"台中市",district:"太平區",address:"406臺中市太平區永隆里光興路453號",phone:"04 2271 0620",tag:"GO 試乘",wheelStyle:"GO-28\"",lat:24.103932,lng:120.5764615},
+    {name:"佑健單車",type:"dealer",city:"彰化市",district:"大竹里",address:"500彰化縣彰化市大竹里市長順街19號",phone:"04 722 6937",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:24.0846094,lng:120.5479111},
+    {name:"美利達中美車行（單車、電動車）維修 買賣",type:"dealer",city:"新竹縣",district:"竹東鎮",address:"310新竹縣竹東鎮中山里東寧路二段123號",phone:"03 596 9816",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:24.7319058,lng:121.0869289},
+
+    // --- Northern / Central / Eastern / Southern Partner Stores ---
+    {name:"亞速百克單車休閒館",type:"dealer",city:"新北市",district:"板橋區",address:"220新北市板橋區篤行路三段79號",phone:"02 2686 2336",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:24.9984,lng:121.4328},
+    {name:"捷安特大車輪",type:"dealer",city:"新北市",district:"板橋區",address:"220新北市板橋區英士路60號",phone:"02 2251 8163",tag:"GO 試乘",wheelStyle:"GO-28\"",lat:25.0232,lng:121.4601},
+    {name:"台中大明自行車",type:"dealer",city:"台中市",district:"大里區",address:"412台中市大里區塗城路694號",phone:"04 2495 3789",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:24.0898,lng:120.6976},
+    {name:"迎風單車 / 竹北勁風",type:"dealer",city:"新竹縣",district:"竹北市",address:"302新竹縣竹北市勝利八街一段277號",phone:"03 667 6810",tag:"GO 試乘",wheelStyle:"Ultra",lat:24.8329,lng:121.0267},
+    {name:"鐵騎休閒館",type:"dealer",city:"新竹縣",district:"竹北市",address:"302新竹縣竹北市六甲五路一段119號",phone:"03 658 2881",tag:"GO 試乘",wheelStyle:"GO-28\"",lat:24.8115,lng:121.0289},
+    {name:"典鑽單車",type:"dealer",city:"嘉義市",district:"西區",address:"600嘉義市西區仁愛路135號",phone:"05 285 1692",tag:"GO 試乘",wheelStyle:"GO-28窄",lat:23.4735,lng:120.4429},
+    {name:"美利達花蓮精誠",type:"dealer",city:"花蓮縣",district:"花蓮市",address:"970花蓮縣花蓮市節約街9號",phone:"03 836 1126",tag:"GO 試乘",wheelStyle:"GO-26\", GO-28窄",lat:23.9785,lng:121.6062},
+    {name:"GIANT捷安特-行千里自行車行",type:"dealer",city:"嘉義市",district:"西區",address:"600嘉義市西區中興路483號",phone:"05 291 0767",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:23.4841,lng:120.4308},
+
+    // --- Kaohsiung Stores ---
+    {name:"夙單車 conquer sports",type:"dealer",city:"高雄市",district:"三民區",address:"807高雄市三民區三民街73號",phone:"07 216 2629",tag:"GO 試乘",wheelStyle:"GO-28\"",lat:22.6366,lng:120.2974},
+    {name:"凱立單車工作室",type:"dealer",city:"高雄市",district:"三民區",address:"高雄市三民區市中一路456-1號",phone:"0982 150 529",tag:"GO 試乘",wheelStyle:"GO-28\"",lat:22.6361,lng:120.2913},
+
+    // --- Taipei, Tainan, Taoyuan, Miaoli, New Taipei, Taitung ---
+    {name:"佶昇腳踏車行",type:"dealer",city:"台南市",district:"永康區",address:"台南市永康區永大路三段550號",phone:"06 201 1007",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:23.0232,lng:120.2642},
+    {name:"單車-ing",type:"dealer",city:"台南市",district:"中西區",address:"台南市中西區臨安路一段126號",phone:"06 221 5087",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:23.0016,lng:120.1932},
+    {name:"美利達-竹南",type:"dealer",city:"苗栗縣",district:"竹南鎮",address:"苗栗縣竹南鎮民族街37號",phone:"03 747 3946",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:24.6853,lng:120.8752},
+    {name:"GIANT捷安特-竹南加盟店",type:"dealer",city:"苗栗縣",district:"竹南鎮",address:"苗栗縣竹南鎮光復路359號",phone:"03 747 0438",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:24.6901,lng:120.8805},
+    {name:"Bike Expert 單車專家",type:"dealer",city:"桃園市",district:"桃園區",address:"桃園市桃園區中山路811號",phone:"0903 525 888",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:24.9912,lng:121.2917},
+    {name:"騎士店長",type:"dealer",city:"新北市",district:"板橋區",address:"新北市板橋區茶館街37號",phone:"0973 730 404",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:25.0094,lng:121.4552},
+    {name:"色彩車行",type:"dealer",city:"台北市",district:"中正區",address:"台北市中正區仁愛路一段4號",phone:"02 2395 9788",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:25.0381,lng:121.5208},
+    {name:"美利達自行車 (台東店)",type:"dealer",city:"台東縣",district:"台東市",address:"950台東縣台東市北平街6號",phone:"",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:22.7562,lng:121.1444}
+  ];
+
+  const map = L.map("nuvariMap", { zoomControl: false }).setView([23.7, 121], 7);
+  L.control.zoom({ position: "bottomright" }).addTo(map);
+
+  L.tileLayer("https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}{r}.png", {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19
+  }).addTo(map);
+
+  let markerLayer = L.layerGroup().addTo(map);
+  let cityCountLayer = L.layerGroup().addTo(map);
+  let markerById = new Map();
+  let elById = new Map();
+  let userLocation = null;
+  let latestFilteredStores = [];
+
+  const storeListEl = document.getElementById("nuvariStoreList");
+  const citySelect = document.getElementById("nuvariCitySelect");
+  const districtSelect = document.getElementById("nuvariDistrictSelect");
+  const purchaseCheck = document.getElementById("nuvariPurchaseCheck");
+  const trialGOCheck = document.getElementById("nuvariTrialGOCheck");
+  const trialUltraCheck = document.getElementById("nuvariTrialUltraCheck");
+  const repairCheck = document.getElementById("nuvariRepairCheck");
+  const resultsCount = document.getElementById("nuvariResultsCount");
+  const emptyStateEl = document.getElementById("nuvariEmptyState");
+  const storeAppEl = document.getElementById("nuvariStoreApp");
+  const viewListBtn = document.getElementById("nuvariViewListBtn");
+  const viewMapBtn = document.getElementById("nuvariViewMapBtn");
+  const locateBtn = document.getElementById("nuvariLocateBtn");
+
+  purchaseCheck.onchange = applyFilters;
+  trialGOCheck.onchange = applyFilters;
+  trialUltraCheck.onchange = applyFilters;
+  repairCheck.onchange = applyFilters;
+
+  function setMobileView(view) {
+    storeAppEl.dataset.mobileView = view;
+    viewListBtn.classList.toggle("active", view === "list");
+    viewListBtn.setAttribute("aria-pressed", view === "list");
+    viewMapBtn.classList.toggle("active", view === "map");
+    viewMapBtn.setAttribute("aria-pressed", view === "map");
+
+    // On mobile the map container is display:none while the list is shown, so
+    // Leaflet's internal size reads as 0x0 during any fitBounds/flyTo issued
+    // while hidden (e.g. the initial applyFilters() call on page load), which
+    // produces a degenerate (near-max) zoom. Correct it the moment the map
+    // actually becomes visible, before any caller-specific flyTo overrides it.
+    if (view === "map" && window.matchMedia("(max-width: 960px)").matches) {
+      map.invalidateSize();
+      if (latestFilteredStores.length > 0) {
+        const bounds = L.latLngBounds(latestFilteredStores.map(function(s) { return [s.lat, s.lng]; }));
+        map.fitBounds(bounds, { padding: [40, 40] });
+      }
+    }
+  }
+
+  viewListBtn.addEventListener("click", function() { setMobileView("list"); });
+  viewMapBtn.addEventListener("click", function() { setMobileView("map"); });
+
+  let userMarker = null;
+
+  function locateUser() {
+    if (!navigator.geolocation) {
+      resultsCount.textContent = "此瀏覽器不支援定位功能";
+      return;
+    }
+
+    locateBtn.dataset.state = "loading";
+
+    navigator.geolocation.getCurrentPosition(function(pos) {
+      locateBtn.removeAttribute("data-state");
+      userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+
+      if (userMarker) map.removeLayer(userMarker);
+      userMarker = L.marker([userLocation.lat, userLocation.lng], {
+        icon: L.divIcon({ className: "", html: '<div class="nuvari-user-marker"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }),
+        zIndexOffset: 1000
+      }).addTo(map);
+
+      applyFilters({ fitBounds: false });
+      setMobileView("map");
+      map.flyTo([userLocation.lat, userLocation.lng], Math.max(map.getZoom(), 13), { duration: 0.8 });
+    }, function() {
+      locateBtn.removeAttribute("data-state");
+      resultsCount.textContent = "無法取得您的位置，請確認已允許定位權限";
+    }, { enableHighAccuracy: true, timeout: 10000 });
+  }
+
+  locateBtn.addEventListener("click", locateUser);
+
+  function getServices(store) {
+    const tag = store.tag || "";
+    const type = store.type || "";
+    const isDirect = store.isHQ || type === "direct";
+
+    if (isDirect) {
+      return {
+        purchase: true,
+        trialGO: true,
+        trialUltra: true,
+        repair: true
+      };
+    }
+
+    if (type === "repair" || tag.includes("維修商")) {
+      return {
+        purchase: false,
+        trialGO: false,
+        trialUltra: false,
+        repair: true
+      };
+    }
+
+    if (tag.includes("僅訂購")) {
+      return {
+        purchase: true,
+        trialGO: false,
+        trialUltra: false,
+        repair: false
+      };
+    }
+
+    return {
+      purchase: true,
+      trialGO: tag.includes("GO 試乘"),
+      trialUltra: tag.includes("Ultra 試乘"),
+      repair: false
+    };
+  }
+
+  function distanceKm(lat1, lng1, lat2, lng2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) *
+      Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  function clearActive() {
+    storeListEl.querySelectorAll(".nuvari-store.active").forEach(el => el.classList.remove("active"));
+  }
+
+  function setActive(id, options) {
+    options = options || {};
+    clearActive();
+
+    const el = elById.get(id);
+    if (el) {
+      el.classList.add("active");
+      if (options.scroll) el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }
+
+  function flyToStore(store) {
+    map.flyTo([store.lat, store.lng], Math.max(map.getZoom(), 15), { duration: 0.8 });
+    const mk = markerById.get(store._id);
+    if (mk) mk.openPopup();
+  }
+
+  function getMarkerColorByStore(store) {
+    const tag = store.tag || "";
+    const type = store.type || "";
+
+    if (store.isHQ || type === "direct") return "#0BC6FF";
+    if (type === "repair" || tag.includes("維修商")) return "#002850";
+    return "#137ECE";
+  }
+
+  function createColoredMarkerIcon(store) {
+    if (store.isHQ) return createHQMarkerIcon();
+
+    const color = getMarkerColorByStore(store);
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="44" viewBox="0 0 32 44">' +
+      '<defs><filter id="s" x="-20%" y="-10%" width="140%" height="130%"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#002850" flood-opacity="0.25"/></filter></defs>' +
+      '<path d="M16 0C7.16 0 0 7.16 0 16c0 12 16 28 16 28s16-16 16-28C32 7.16 24.84 0 16 0z" fill="' + color + '" filter="url(#s)"/>' +
+      '<circle cx="16" cy="15" r="6.5" fill="white"/>' +
+      '</svg>';
+
+    return L.icon({
+      iconUrl: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg),
+      iconSize: [32, 44],
+      iconAnchor: [16, 44],
+      popupAnchor: [0, -38]
+    });
+  }
+
+  function createHQMarkerIcon() {
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="36" height="48" viewBox="0 0 36 48">' +
+      '<defs><filter id="hqs" x="-20%" y="-10%" width="140%" height="130%"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#002850" flood-opacity="0.35"/></filter></defs>' +
+      '<path d="M18 0C8.06 0 0 8.06 0 18c0 13.5 18 30 18 30s18-16.5 18-30C36 8.06 27.94 0 18 0z" fill="#0BC6FF" filter="url(#hqs)"/>' +
+      '<circle cx="18" cy="17" r="8" fill="white"/>' +
+      '<text x="18" y="20.5" text-anchor="middle" font-family="Lexend,sans-serif" font-weight="900" font-size="8" fill="#002850">HQ</text>' +
+      '</svg>';
+
+    return L.icon({
+      iconUrl: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg),
+      iconSize: [36, 48],
+      iconAnchor: [18, 48],
+      popupAnchor: [0, -42]
+    });
+  }
+
+  function buildPopupHTML(s) {
+    const gURL = "https://www.google.com/maps/dir/?api=1&destination=" + s.lat + "," + s.lng;
+    const tel = (s.phone || "").replace(/\s/g, "");
+
+    return '<div class="nuvari-popup-inner">' +
+      '<div class="nuvari-popup-name">' + s.name + '</div>' +
+      '<div class="nuvari-popup-detail"><span class="material-symbols-outlined">location_on</span><span>' + s.address + '</span></div>' +
+      '<div class="nuvari-popup-detail"><span class="material-symbols-outlined">call</span><span>' + (s.phone || "（未提供）") + '</span></div>' +
+      '<div class="nuvari-popup-actions">' +
+      '<a class="nuvari-popup-btn primary" href="' + gURL + '" target="_blank" rel="noopener"><span class="material-symbols-outlined" style="font-size:14px;">directions</span>導航</a>' +
+      '<a class="nuvari-popup-btn secondary" href="tel:' + tel + '"><span class="material-symbols-outlined" style="font-size:14px;">call</span>撥打</a>' +
+      '</div>' +
+      '</div>';
+  }
+
+  function renderMap(stores) {
+    markerLayer.clearLayers();
+    cityCountLayer.clearLayers();
+    markerById.clear();
+
+    stores.forEach(function(s) {
+      const m = L.marker([s.lat, s.lng], { icon: createColoredMarkerIcon(s) })
+        .bindPopup(buildPopupHTML(s), { maxWidth: 280 });
+
+      m.on("click", function() {
+        setActive(s._id, { scroll: true });
+        m.openPopup();
+      });
+
+      markerLayer.addLayer(m);
+      markerById.set(s._id, m);
+    });
+
+    renderCityCounts(stores);
+    toggleMapMode();
+  }
+
+  function renderCityCounts(stores) {
+    const groups = {};
+
+    stores.forEach(function(s) {
+      if (!groups[s.city]) groups[s.city] = [];
+      groups[s.city].push(s);
+    });
+
+    Object.keys(groups).forEach(function(city) {
+      const list = groups[city];
+      const lat = list.reduce(function(sum, s) { return sum + s.lat; }, 0) / list.length;
+      const lng = list.reduce(function(sum, s) { return sum + s.lng; }, 0) / list.length;
+
+      const icon = L.divIcon({
+        className: "nuvari-city-count-marker",
+        html: '<div class="nuvari-city-count"><strong>' + list.length + '</strong><span>' + city + '</span></div>',
+        iconSize: [64, 64],
+        iconAnchor: [32, 32]
+      });
+
+      const m = L.marker([lat, lng], { icon: icon });
+
+      m.on("click", function() {
+        const bounds = L.latLngBounds(list.map(function(s) { return [s.lat, s.lng]; }));
+        map.fitBounds(bounds, { padding: [50, 50] });
+      });
+
+      cityCountLayer.addLayer(m);
+    });
+  }
+
+  function toggleMapMode() {
+    if (map.getZoom() <= 9) {
+      if (map.hasLayer(markerLayer)) map.removeLayer(markerLayer);
+      if (!map.hasLayer(cityCountLayer)) map.addLayer(cityCountLayer);
+    } else {
+      if (map.hasLayer(cityCountLayer)) map.removeLayer(cityCountLayer);
+      if (!map.hasLayer(markerLayer)) map.addLayer(markerLayer);
+    }
+  }
+
+  map.on("zoomend", toggleMapMode);
+
+  function renderList(stores) {
+    storeListEl.innerHTML = "";
+    elById.clear();
+    emptyStateEl.hidden = stores.length > 0;
+
+    stores.forEach(function(s) {
+      const services = getServices(s);
+      let badges = "";
+      if (services.purchase) badges += '<span class="nuvari-badge" title="購車"><span class="material-symbols-outlined" aria-hidden="true">storefront</span></span>';
+      if (services.trialGO) badges += '<span class="nuvari-badge" title="GO 試乘"><span class="material-symbols-outlined" aria-hidden="true">pedal_bike</span></span>';
+      if (services.trialUltra) badges += '<span class="nuvari-badge" title="Ultra 試乘"><span class="material-symbols-outlined" aria-hidden="true">speed</span></span>';
+      if (services.repair) badges += '<span class="nuvari-badge repair" title="維修"><span class="material-symbols-outlined" aria-hidden="true">build</span></span>';
+
+      let distanceTag = "";
+      if (userLocation && s.distanceKm !== undefined) {
+        distanceTag = '<span class="nuvari-tag distance">' + s.distanceKm.toFixed(1) + ' km</span>';
+      }
+
+      const div = document.createElement("div");
+      div.className = "nuvari-store" + (s.isHQ ? " is-hq" : "");
+      div.dataset.id = s._id;
+
+      div.innerHTML =
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;">' +
+        '<div class="nuvari-store-name" style="margin-bottom:0;">' + s.name + '</div>' + distanceTag +
+        '</div>' +
+        '<div class="nuvari-store-meta">' +
+        '<div class="nuvari-store-meta-row"><span class="material-symbols-outlined">location_on</span><span>' + s.address + '</span></div>' +
+        '<div class="nuvari-store-meta-row"><span class="material-symbols-outlined">call</span><span>' + (s.phone || "（未提供）") + '</span></div>' +
+        '</div>' +
+        '<div class="nuvari-badge-row">' + badges + '</div>';
+
+      div.addEventListener("click", function() {
+        setActive(s._id, { scroll: false });
+        setMobileView("map");
+        flyToStore(s);
+      });
+
+      storeListEl.appendChild(div);
+      elById.set(s._id, div);
+    });
+  }
+
+  function applyFilters(options) {
+    const fitBounds = !options || options.fitBounds !== false;
+    const city = citySelect.value;
+    const district = districtSelect.value;
+    const needPurchase = purchaseCheck.checked;
+    const needTrialGO = trialGOCheck.checked;
+    const needTrialUltra = trialUltraCheck.checked;
+    const needRepair = repairCheck.checked;
+
+    let filtered = STORES
+      .filter(function(s) {
+        const services = getServices(s);
+        const matchCity = !city || s.city === city;
+        const matchDistrict = !district || s.district === district;
+        const matchPurchase = !needPurchase || services.purchase;
+        const matchTrialGO = !needTrialGO || services.trialGO;
+        const matchTrialUltra = !needTrialUltra || services.trialUltra;
+        const matchRepair = !needRepair || services.repair;
+
+        return matchCity && matchDistrict && matchPurchase && matchTrialGO && matchTrialUltra && matchRepair;
+      })
+      .map(function(s, idx) {
+        const item = Object.assign({}, s, { _id: s.city + "-" + s.district + "-" + s.name + "-" + idx });
+
+        if (userLocation) {
+          item.distanceKm = distanceKm(userLocation.lat, userLocation.lng, item.lat, item.lng);
+        }
+
+        return item;
+      });
+
+    if (userLocation) {
+      filtered.sort(function(a, b) {
+        return a.distanceKm - b.distanceKm;
+      });
+    }
+
+    latestFilteredStores = filtered;
+
+    renderMap(filtered);
+    renderList(filtered);
+
+    resultsCount.textContent = filtered.length + " 間據點" + (userLocation ? "｜已依距離排序" : "");
+
+    if (fitBounds && filtered.length > 0) {
+      const bounds = L.latLngBounds(filtered.map(function(s) {
+        return [s.lat, s.lng];
+      }));
+
+      map.fitBounds(bounds, { padding: [40, 40] });
+    }
+  }
+
+  Array.from(new Set(STORES.map(function(s) {
+    return s.city;
+  }))).forEach(function(c) {
+    const o = document.createElement("option");
+    o.value = c;
+    o.textContent = c;
+    citySelect.appendChild(o);
+  });
+
+  citySelect.onchange = function() {
+    const city = citySelect.value;
+    districtSelect.innerHTML = '<option value="">選擇區域</option>';
+    districtSelect.disabled = !city;
+
+    Array.from(new Set(STORES.filter(function(s) {
+      return s.city === city;
+    }).map(function(s) {
+      return s.district;
+    }))).forEach(function(d) {
+      const o = document.createElement("option");
+      o.value = d;
+      o.textContent = d;
+      districtSelect.appendChild(o);
+    });
+
+    applyFilters();
+  };
+
+  districtSelect.onchange = applyFilters;
+
+  window.addEventListener("resize", function() {
+    map.invalidateSize();
+  });
+
+  applyFilters();
+}
+
+(function() {
+  if (window.L) {
+    initNuvariStoreApp();
+    return;
+  }
+
+  var s = document.createElement("script");
+  s.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+  s.onload = initNuvariStoreApp;
+  document.head.appendChild(s);
+})();
+</script>
+
+</body>
+</html>
