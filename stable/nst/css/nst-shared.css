@@ -273,6 +273,7 @@ img { max-width: 100%; }
 .badge-yellow { background: #FEF9C3; color: #CA8A04; }
 .badge-lime   { background: #ECFCCB; color: #5B8C1A; }
 .badge-pink   { background: #FCE7F3; color: #DB2777; }
+.badge-cyan   { background: #E0F7FA; color: #0891B2; }
 
 /* Badge-styled <select> — looks like .nst-badge but is a real inline-editable control (used for
    the shop list's inline priority editor). Colors are set inline per-instance via style=, since

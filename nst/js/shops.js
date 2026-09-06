@@ -179,6 +179,7 @@ export const STATUS_LABELS = {
   '拜訪過-評估中': { zh: '拜訪過-評估中', en: 'Visited (Undecided)',    color: 'badge-yellow' },
   '拜訪過-拒絕': { zh: '拜訪過-拒絕', en: 'Visited (Declined)',        color: 'badge-red' },
   '已合作':      { zh: '已合作',      en: 'Partnered',                 color: 'badge-green' },
+  '已合作-有樣品': { zh: '已合作-有樣品', en: 'Partnered (Sample Installed)', color: 'badge-cyan' },
   '已合作-流失': { zh: '已合作-流失', en: 'Partnered (Churned)',       color: 'badge-purple' },
   // Inbound lead — the shop reached out wanting to partner, rather than us visiting/cold-calling
   // them. Sits outside the main 尚未開發→…→已合作 pipeline shape (no phone/visit step implied),

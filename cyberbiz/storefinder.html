@@ -91,24 +91,13 @@
     box-shadow: 0 10px 28px rgba(0,40,80,0.08);
   }
 
-  .nuvari-store-intro-panel h1 {
-    font-size: clamp(28px, 2.7vw, 38px);
-    line-height: 1.35;
-    margin: 0 0 12px;
+  .nuvari-store-intro-panel h2 {
+    font-size: clamp(20px, 2.2vw, 26px);
+    line-height: 1.4;
+    margin: 0;
     color: #002850;
     font-weight: 800;
     letter-spacing: 0.02em;
-  }
-
-  .nuvari-store-intro-panel p {
-    max-width: 860px;
-    margin: 0 auto 6px;
-    color:#002850;
-    font-size: 16px;
-  }
-
-  .nuvari-store-intro-panel .nuvari-contact-actions {
-    margin-top: 18px;
   }
 
   .nuvari-store-hero .eyebrow {
@@ -789,179 +778,9 @@
     margin-top: 3px;
   }
 
-  .nuvari-store-type-section {
-    margin-top: 28px;
-    background: #ffffff;
-    border: 1px solid #E6ECF2;
-    border-radius: 24px;
-    padding: 28px;
-    box-shadow: 0 10px 28px rgba(0,40,80,0.06);
-  }
-
-  .nuvari-store-type-section h2 {
-    font-size: 24px;
-    margin: 0 0 8px;
-    color: var(--secondary-dark);
-  }
-
-  .nuvari-store-type-section > p {
-    margin: 0 0 18px;
-    color: var(--text-muted);
-  }
-
-  .nuvari-store-type-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 14px;
-  }
-
-  .nuvari-store-type-card {
-    position: relative;
-    border: 1px solid #E6ECF2;
-    border-radius: 20px;
-    padding: 22px;
-    background: var(--surface-container);
-    overflow: hidden;
-  }
-
-  .nuvari-store-type-card.direct,
-  .nuvari-store-type-card.dealer {
-    border-color: rgba(11,198,255,0.45);
-    background: #ECFAFF;
-  }
-
-  .nuvari-store-type-card.repair {
-    background: #F8F8F8;
-  }
-
-  .nuvari-store-type-card .pin {
-    position: relative;
-    width: 42px;
-    height: 42px;
-    border-radius: 50% 50% 50% 0;
-    transform: rotate(-45deg);
-    margin-bottom: 18px;
-    box-shadow: 0 8px 18px rgba(0,40,80,0.16);
-  }
-
-  .nuvari-store-type-card .pin span {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: #ffffff;
-    transform: translate(-50%, -50%) rotate(45deg);
-  }
-
-  .nuvari-store-type-card.direct .pin { background: #0BC6FF; }
-  .nuvari-store-type-card.dealer .pin { background: #137ECE; }
-  .nuvari-store-type-card.repair { display: none; }
-  .nuvari-store-type-card.repair .pin { background: #002850; }
-
-  .nuvari-store-type-card h3 {
-    margin: 0;
-    font-size: 20px;
-    color: var(--secondary-dark);
-  }
-
-  .nuvari-store-type-card .subtitle {
-    margin: 2px 0 16px;
-    color: var(--secondary-dark);
-    font-weight: 700;
-    font-size: 14px;
-  }
-
-  .nuvari-store-type-card ul {
-    margin: 0;
-    padding-left: 20px;
-    color: #1f2937;
-    font-size: 14px;
-  }
-
-  .nuvari-store-type-card li {
-    margin-bottom: 6px;
-  }
-  .nuvari-series-note {
-    margin-top: 18px;
-    background: #ECFAFF;
-    border: 1px solid rgba(11,198,255,0.45);
-    border-left: 6px solid var(--primary);
-    border-radius: 20px;
-    padding: 22px;
-  }
-
-  .nuvari-series-note h3 {
-    margin: 0 0 8px;
-    color: var(--secondary-dark);
-    font-size: 20px;
-  }
-
-  .nuvari-series-note p {
-    margin: 0 0 12px;
-    color: #475467;
-    font-size: 14px;
-  }
-
-  .nuvari-series-note ul {
-    margin: 0;
-    padding-left: 20px;
-    color: #1f2937;
-    font-size: 14px;
-  }
-
-  .nuvari-series-note li {
-    margin-bottom: 6px;
-  }
-
   .nuvari-tag.trial-go { background: var(--tag-go); color: var(--secondary-dark); }
   .nuvari-tag.trial-ultra { background: var(--tag-ultra); color: #ffffff; }
 
-
-  .nuvari-contact-box {
-    background: #002850;
-    color: #ffffff;
-    border-radius: 24px;
-    padding: 28px;
-    margin-top: 28px;
-    text-align: center;
-  }
-
-  .nuvari-contact-box h2 {
-    color: #ffffff;
-    margin: 0 0 8px;
-    font-size: 24px;
-  }
-
-  .nuvari-contact-box p {
-    margin: 0;
-    color: rgba(255,255,255,0.86);
-  }
-
-  .nuvari-contact-actions {
-    display: flex;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 18px;
-  }
-
-  .nuvari-service-btn {
-    display: inline-block;
-    background: #06c755;
-    color: #ffffff !important;
-    text-decoration: none;
-    font-weight: 800;
-    border-radius: 999px;
-    padding: 9px 18px;
-    transition: all .2s ease;
-  }
-
-  .nuvari-service-btn.secondary {
-    background: #137ECE;
-    color: #ffffff !important;
-  }
 
   @media (max-width: 960px) {
     .nuvari-store-page {
@@ -971,9 +790,7 @@
     .nuvari-store-hero,
     .nuvari-store-intro-panel,
     .nuvari-alert,
-    .nuvari-shop-cta,
-    .nuvari-contact-box,
-    .nuvari-store-type-section {
+    .nuvari-shop-cta {
       margin-left: 16px;
       margin-right: 16px;
     }
@@ -1045,20 +862,6 @@
       display: none;
     }
 
-    .nuvari-store-type-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .nuvari-contact-actions {
-      flex-direction: column;
-      align-items: center;
-    }
-
-    .nuvari-service-btn {
-      width: 100%;
-      max-width: 280px;
-      text-align: center;
-    }
   }
 
   @media (max-width: 560px) {
@@ -1069,9 +872,7 @@
     .nuvari-store-hero,
     .nuvari-store-intro-panel,
     .nuvari-alert,
-    .nuvari-shop-cta,
-    .nuvari-contact-box,
-    .nuvari-store-type-section {
+    .nuvari-shop-cta {
       margin-left: 10px;
       margin-right: 10px;
     }
@@ -1086,13 +887,8 @@
       margin-bottom: 22px;
     }
 
-    .nuvari-store-intro-panel h1 {
-      font-size: clamp(24px, 7vw, 30px);
-    }
-
-    .nuvari-store-intro-panel p {
-      font-size: 14px;
-      line-height: 1.65;
+    .nuvari-store-intro-panel h2 {
+      font-size: clamp(18px, 6vw, 22px);
     }
 
     .nuvari-store-hero h1 {
@@ -1103,16 +899,6 @@
     .nuvari-store-hero p {
       font-size: clamp(12px, 3.6vw, 14px);
       line-height: 1.6;
-    }
-
-    .nuvari-contact-actions {
-      margin-top: 12px;
-      gap: 8px;
-    }
-
-    .nuvari-service-btn {
-      padding: 8px 14px;
-      font-size: 13px;
     }
   }
 
@@ -1131,17 +917,7 @@
   </section>
 
   <section class="nuvari-store-intro-panel" aria-label="nuvari 線下實體店查詢說明">
-    <p>查詢 nuvari 合作門市、試騎據點與安裝服務據點。</p>
-    <p>您可以依縣市、區域與服務類型篩選，快速找到離您最近的合作車店，並直接導航或預約試騎。</p>
-
-    <div class="nuvari-contact-actions">
-      <a class="nuvari-service-btn" href="https://page.line.me/091vmynj" target="_blank" rel="noopener">
-        加入 LINE@ 預約試騎
-      </a>
-      <a class="nuvari-service-btn secondary" href="https://datalake-tech.zendesk.com/hc/zh-tw/requests/new?ticket_form_id=14737655729039" target="_blank" rel="noopener">
-        歡迎加入 nuvari 經銷網絡
-      </a>
-    </div>
+    <h2>查詢 nuvari 合作門市、試騎據點與安裝服務據點。</h2>
   </section>
 
   <div class="nuvari-store-app" id="nuvariStoreApp" data-mobile-view="list">
@@ -1151,7 +927,7 @@
 
         <div class="nuvari-filter-row">
           <select id="nuvariCitySelect">
-            <option value="">選擇縣市</option>
+            <option value="">全台灣</option>
           </select>
 
           <select id="nuvariDistrictSelect" disabled>
@@ -1216,57 +992,6 @@
     </div>
   </div>
 
-  <section class="nuvari-store-type-section">
-    <h2>授權經銷與直營門市說明</h2>
-    <p>不同據點可提供的服務略有差異，建議前往前先確認可試乘車款、購買品項與安裝維修時段。</p>
-
-    <div class="nuvari-store-type-grid">
-      <div class="nuvari-store-type-card direct">
-        <div class="pin"><span></span></div>
-        <h3>直營門市</h3>
-        <div class="subtitle">nuvari 總部／官方設立之體驗門市</div>
-        <ul>
-          <li>預約試乘：線上預約即可到店試乘</li>
-          <li>保養維修：於駐點時段開放保養維修</li>
-          <li>購車服務：全車系任意車款皆可購買</li>
-        </ul>
-      </div>
-
-      <div class="nuvari-store-type-card dealer">
-        <div class="pin"><span></span></div>
-        <h3>實體經銷商</h3>
-        <div class="subtitle">一般授權之銷售通路</div>
-        <ul>
-          <li>預約試乘：電話預約即可到店試乘</li>
-          <li>購車服務：僅能購買指定車款</li>
-          <li>安裝維修：目前請以 nuvari 總部服務為主，合作店家服務將陸續開放</li>
-        </ul>
-      </div>
-
-      <div class="nuvari-store-type-card repair">
-        <div class="pin"><span></span></div>
-        <h3>維修商</h3>
-        <div class="subtitle">品牌合作之維修據點</div>
-        <ul>
-          <li>保養維修：營業時段皆可前往維修</li>
-        </ul>
-      </div>
-    </div>
-
-    <div class="nuvari-series-note">
-      <h3>產品系列試乘提醒</h3>
-      <p>
-        各店家可提供的試乘體驗產品型號系列不同，請先確認離您最近的店家支援的是 GO 系列或 Ultra 系列，
-        並確認該系列是否符合您的自行車規格與使用情境。
-      </p>
-      <ul>
-        <li><strong>GO 系列：</strong>適合城市通勤、日常短程移動與一般休閒騎乘需求。</li>
-        <li><strong>Ultra 系列：</strong>適合公路車、長距離騎乘、爬坡與進階騎乘需求。</li>
-        <li><strong>前往試乘前：</strong>建議先透過 LINE@ 或電話確認店家是否有對應系列試乘車與可預約時段。</li>
-      </ul>
-    </div>
-  </section>
-
 
 </div>
 
@@ -1297,9 +1022,9 @@ function initNuvariStoreApp() {
     {name:"傑輪單車休閒館 Jalen Bike Shop",type:"dealer",city:"南投縣",district:"南投市",address:"540南投縣南投市大同街17號",phone:"0921 594 356",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:23.9065286,lng:120.6855893},
     {name:"美利達-東益店（單車銷售、出租）",type:"dealer",city:"南投縣",district:"南投市",address:"540南投縣南投市中興路16號",phone:"04 9233 7000",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:23.9390099,lng:120.694468},
     {name:"晉榮車行",type:"dealer",city:"嘉義市",district:"東區",address:"600嘉義市東區台林街233號",phone:"05 271 9243",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:23.4978156,lng:120.4552815},
-    {name:"GIANT捷安特-金的車行 自行車&電動車專賣店",type:"dealer",city:"臺中市",district:"豐原區",address:"420臺中市豐原區西安里中正路457號",phone:"04 2525 6347",tag:"GO 試乘",wheelStyle:"GO-28\"",lat:24.2504496,lng:120.7091707},
+    {name:"GIANT捷安特-金的車行 自行車&電動車專賣店",type:"dealer",city:"台中市",district:"豐原區",address:"420臺中市豐原區西安里中正路457號",phone:"04 2525 6347",tag:"GO 試乘",wheelStyle:"GO-28\"",lat:24.2504496,lng:120.7091707},
     {name:"成功行",type:"dealer",city:"台中市",district:"太平區",address:"406臺中市太平區永隆里光興路453號",phone:"04 2271 0620",tag:"GO 試乘",wheelStyle:"GO-28\"",lat:24.103932,lng:120.5764615},
-    {name:"佑健單車",type:"dealer",city:"彰化市",district:"大竹里",address:"500彰化縣彰化市大竹里市長順街19號",phone:"04 722 6937",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:24.0846094,lng:120.5479111},
+    {name:"佑健單車",type:"dealer",city:"彰化縣",district:"彰化市",address:"500彰化縣彰化市大竹里市長順街19號",phone:"04 722 6937",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:24.0846094,lng:120.5479111},
     {name:"美利達中美車行（單車、電動車）維修 買賣",type:"dealer",city:"新竹縣",district:"竹東鎮",address:"310新竹縣竹東鎮中山里東寧路二段123號",phone:"03 596 9816",tag:"GO 試乘",wheelStyle:"GO-26\"",lat:24.7319058,lng:121.0869289},
 
     // --- Northern / Central / Eastern / Southern Partner Stores ---
@@ -1503,9 +1228,17 @@ function initNuvariStoreApp() {
   }
 
   function flyToStore(store) {
-    map.flyTo([store.lat, store.lng], Math.max(map.getZoom(), 15), { duration: 0.8 });
     const mk = markerById.get(store._id);
-    if (mk) mk.openPopup();
+
+    // At the default zoomed-out view the individual store markers aren't on
+    // the map yet (toggleMapMode shows city-count bubbles instead below
+    // zoom 10), so opening the popup before the fly animation finishes and
+    // the zoomend handler swaps the layers in is a silent no-op. Wait for
+    // the whole pan+zoom to actually land, then open it.
+    map.flyTo([store.lat, store.lng], Math.max(map.getZoom(), 15), { duration: 0.8 });
+    map.once("moveend", function() {
+      if (mk) mk.openPopup();
+    });
   }
 
   // Single source of truth for how a store's type is represented visually
@@ -1735,9 +1468,31 @@ function initNuvariStoreApp() {
     }
   }
 
-  Array.from(new Set(STORES.map(function(s) {
+  // Taiwan's counties/cities in the conventional north-to-south, then east,
+  // then outlying-islands order (not alphabetical/data order) so the 縣市
+  // dropdown reads the way a Taiwanese user expects.
+  const CITY_ORDER = [
+    "台北市", "新北市", "基隆市", "桃園市", "新竹市", "新竹縣",
+    "苗栗縣", "台中市", "彰化縣", "南投縣", "雲林縣",
+    "嘉義市", "嘉義縣", "台南市", "高雄市", "屏東縣",
+    "宜蘭縣", "花蓮縣", "台東縣",
+    "澎湖縣", "金門縣", "連江縣"
+  ];
+
+  function sortByCityOrder(cities) {
+    return cities.slice().sort(function(a, b) {
+      const ia = CITY_ORDER.indexOf(a);
+      const ib = CITY_ORDER.indexOf(b);
+      if (ia === -1 && ib === -1) return a.localeCompare(b, "zh-Hant");
+      if (ia === -1) return 1;
+      if (ib === -1) return -1;
+      return ia - ib;
+    });
+  }
+
+  sortByCityOrder(Array.from(new Set(STORES.map(function(s) {
     return s.city;
-  }))).forEach(function(c) {
+  })))).forEach(function(c) {
     const o = document.createElement("option");
     o.value = c;
     o.textContent = c;
@@ -1761,9 +1516,13 @@ function initNuvariStoreApp() {
     });
 
     applyFilters();
+    setMobileView("list");
   };
 
-  districtSelect.onchange = applyFilters;
+  districtSelect.onchange = function() {
+    applyFilters();
+    setMobileView("list");
+  };
 
   window.addEventListener("resize", function() {
     map.invalidateSize();
